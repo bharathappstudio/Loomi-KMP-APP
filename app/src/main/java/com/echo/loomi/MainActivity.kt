@@ -613,6 +613,7 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .nothingBackground(if (isDark) Color.White else Color.Black, isDark)
                     .blur(androidx.compose.ui.unit.lerp(0.dp, 25.dp, blurProgress))
             ) {
                 Scaffold(
@@ -1216,14 +1217,25 @@ fun StoryBottomSheet(
 @Composable
 fun SnapChatItem(user: SnapUser, onClick: () -> Unit, onLongClick: () -> Unit) {
     val isDark = isSystemInDarkTheme()
-    Row(modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick).drawBehind {
-        val strokeWidth = 1.dp.toPx()
-        val y = size.height - strokeWidth / 2
-        drawLine(color = if (isDark) Color.White.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.1f), start = Offset(0f, y), end = Offset(size.width, y), strokeWidth = strokeWidth)
-    }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(modifier = Modifier.size(54.dp).border(width = 2.dp, color = if (isDark) Color.White else (if (user.status == "Online") Color(
-            0xFFA5D6A7
-        ) else Color(0xFFFFD54F).copy(alpha = 0.5f)), shape = CircleShape).background(MaterialTheme.colorScheme.surface, CircleShape), contentAlignment = Alignment.Center) {
+    val accent = if (isDark) Color.White else Color.Black
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .drawBehind {
+                val strokeWidth = 1.dp.toPx()
+                drawLine(
+                    color = accent.copy(alpha = 0.05f),
+                    start = Offset(0f, size.height),
+                    end = Offset(size.width, size.height),
+                    strokeWidth = strokeWidth
+                )
+            }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(modifier = Modifier.size(52.dp), contentAlignment = Alignment.Center) {
             val context = LocalContext.current
             val imageRequest = remember(user.imageName) {
                 val data: Any = if (user.imageName.startsWith("data:image")) {
@@ -1244,29 +1256,73 @@ fun SnapChatItem(user: SnapUser, onClick: () -> Unit, onLongClick: () -> Unit) {
                 ImageRequest.Builder(context)
                     .data(data)
                     .crossfade(true)
-                    .size(150, 150)
+                    .size(120, 120)
                     .build()
             }
             AsyncImage(
                 model = imageRequest,
                 contentDescription = null,
-                modifier = Modifier.padding(4.dp).clip(CircleShape),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .border(1.dp, accent.copy(0.1f), CircleShape)
+                    .padding(3.dp)
+                    .clip(CircleShape),
                 contentScale = ContentScale.Crop,
                 error = painterResource(R.drawable.logo)
             )
+            
+            if (user.status == "Online") {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .align(Alignment.BottomEnd)
+                        .background(MaterialTheme.colorScheme.background, CircleShape)
+                        .padding(2.dp)
+                        .background(Color(0xFF4CAF50), CircleShape)
+                )
+            }
         }
-        Spacer(modifier = Modifier.width(12.dp))
+        
+        Spacer(modifier = Modifier.width(16.dp))
+        
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = user.name, fontSize = 17.sp, fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                text = user.name.uppercase(),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = accent,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                letterSpacing = 0.5.sp
+            )
+            
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val displayMsg = remember(user.lastMessage) {
-                    if (user.lastMessage.startsWith("img:")) "Sent an image"
-                    else EncryptionUtils.decrypt(user.lastMessage)
+                    if (user.lastMessage.startsWith("img:")) "IMAGE_NODE"
+                    else EncryptionUtils.decrypt(user.lastMessage).uppercase()
                 }
-                val statusText = if (displayMsg.isNotEmpty()) displayMsg else if (user.status == "Online") "Online" else formatLastSeen(user.lastSeen)
-                Text(text = "➤ ", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), fontSize = 11.sp, modifier = Modifier.padding(end = 4.dp))
-                Text(text = statusText, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), fontSize = 13.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                val statusText = if (displayMsg.isNotEmpty()) displayMsg else if (user.status == "Online") "ENCRYPTED" else formatLastSeen(user.lastSeen).uppercase()
+                
+                Text(
+                    text = statusText,
+                    color = accent.copy(alpha = 0.4f),
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    letterSpacing = 1.sp
+                )
             }
+        }
+    }
+}
+
+fun Modifier.nothingBackground(color: Color, isDark: Boolean): Modifier = this.drawBehind {
+    val dotColor = color.copy(alpha = if (isDark) 0.12f else 0.05f)
+    val spacing = 24.dp.toPx()
+    val radius = 0.8.dp.toPx()
+    for (x in 0..size.width.toInt() step spacing.toInt()) {
+        for (y in 0..size.height.toInt() step spacing.toInt()) {
+            drawCircle(dotColor, radius, Offset(x.toFloat(), y.toFloat()))
         }
     }
 }
@@ -1281,26 +1337,36 @@ fun FloatingBottomNavBar(
     modifier: Modifier = Modifier
 ) {
     val isDark = isSystemInDarkTheme()
-    val bgColor = if (isDark) Color(0xFF1A1A1A) else Color(0xFFFFF2D9)
-    val iconColor = if (isDark) Color.White else Color.Black
+    val accent = if (isDark) Color.White else Color.Black
+    val bgColor = if (isDark) Color(0xFF111111) else Color(0xFFF5F5F5)
 
-    Box(modifier = modifier.zIndex(1f).padding(horizontal = 80.dp).height(50.dp).clip(RoundedCornerShape(30.dp)).background(bgColor).border(width = 2.dp, color = Color.White.copy(alpha = 0.2f), shape = RoundedCornerShape(30.dp))) {
-        Row(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onCameraClick, modifier = Modifier.size(36.dp)) { Icon(painterResource(R.drawable.camera), null, tint = iconColor, modifier = Modifier.size(20.dp)) }
-            Spacer(modifier = Modifier.width(20.dp))
-            IconButton(onClick = onSearchClick, modifier = Modifier.size(36.dp)) { Icon(painterResource(R.drawable.search), null, tint = iconColor, modifier = Modifier.size(20.dp)) }
-            Spacer(modifier = Modifier.width(20.dp))
+    Box(
+        modifier = modifier
+            .zIndex(1f)
+            .padding(horizontal = 80.dp)
+            .height(54.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(bgColor)
+            .border(width = 1.dp, color = accent.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onCameraClick, modifier = Modifier.size(40.dp)) { Icon(painterResource(R.drawable.camera), null, tint = accent, modifier = Modifier.size(20.dp)) }
+            IconButton(onClick = onSearchClick, modifier = Modifier.size(40.dp)) { Icon(painterResource(R.drawable.search), null, tint = accent, modifier = Modifier.size(20.dp)) }
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(4.dp))
                     .combinedClickable(
                         onClick = onStoryClick,
                         onLongClick = onAddAccount
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(painterResource(R.drawable.heart), null, tint = iconColor, modifier = Modifier.size(20.dp))
+                Icon(painterResource(R.drawable.heart), null, tint = accent, modifier = Modifier.size(20.dp))
             }
         }
     }

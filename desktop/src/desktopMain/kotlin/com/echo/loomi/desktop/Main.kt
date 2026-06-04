@@ -1,8 +1,10 @@
 package com.echo.loomi.desktop
 
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.echo.loomi.desktop.network.FirebaseClient
@@ -67,7 +69,11 @@ fun main() = application {
             exitApplication()
         },
         title = "Loomi Desktop Node",
-        state = rememberWindowState(width = 1100.dp, height = 750.dp)
+        state = rememberWindowState(
+            position = WindowPosition(Alignment.Center),
+            width = 1100.dp, 
+            height = 750.dp
+        )
     ) {
         LoomiTheme {
             when (currentScreen) {

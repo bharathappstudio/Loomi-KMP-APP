@@ -68,34 +68,44 @@ fun WelcomeScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(surface)) {
-        Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+    Box(modifier = Modifier.fillMaxSize().background(surface), contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier.width(460.dp).wrapContentHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             // Header
-            Spacer(modifier = Modifier.height(60.dp))
-            Text("PROFILE SETUP", fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp, color = accent)
-            
+            Text(
+                "PROFILE SETUP",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 4.sp,
+                color = accent
+            )
+
+            Spacer(modifier = Modifier.height(48.dp))
+
             // Preview
-            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                Box(
-                    modifier = Modifier.size(200.dp).clip(CircleShape).border(1.dp, accent.copy(0.1f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    when {
-                        customBitmap != null -> Image(customBitmap!!, null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                        selectedImage.isEmpty() && googleBitmap != null -> Image(googleBitmap!!, null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                        else -> Image(painterResource("Memoji/$selectedGender/Circle/$selectedImage"), null, modifier = Modifier.fillMaxSize().padding(10.dp), contentScale = ContentScale.Crop)
-                    }
+            Box(
+                modifier = Modifier.size(220.dp).clip(CircleShape).border(1.dp, accent.copy(0.1f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                when {
+                    customBitmap != null -> Image(customBitmap!!, null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    selectedImage.isEmpty() && googleBitmap != null -> Image(googleBitmap!!, null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    else -> Image(painterResource("Memoji/$selectedGender/Circle/$selectedImage"), null, modifier = Modifier.fillMaxSize().padding(10.dp), contentScale = ContentScale.Crop)
                 }
             }
 
+            Spacer(modifier = Modifier.height(48.dp))
+
             // Options
             Column(
-                modifier = Modifier.fillMaxWidth().padding(40.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     // Upload
-                    Box(modifier = Modifier.size(50.dp).border(1.dp, accent.copy(0.2f), CircleShape).clickable {
+                    Box(modifier = Modifier.size(54.dp).border(1.dp, accent.copy(0.2f), CircleShape).clickable {
                         scope.launch(Dispatchers.IO) {
                             val fd = java.awt.FileDialog(null as java.awt.Frame?, "UPLOAD", java.awt.FileDialog.LOAD)
                             fd.isVisible = true
@@ -105,42 +115,47 @@ fun WelcomeScreen(
                             }
                         }
                     }, contentAlignment = Alignment.Center) {
-                        Text("↑", fontSize = 20.sp, color = accent)
+                        Text("↑", fontSize = 24.sp, color = accent)
                     }
                     
                     if (googleBitmap != null) {
-                        Box(modifier = Modifier.size(50.dp).clip(CircleShape).clickable { customImageBase64 = null; selectedImage = "" }) {
+                        Box(modifier = Modifier.size(54.dp).clip(CircleShape).clickable { customImageBase64 = null; selectedImage = "" }) {
                             Image(googleBitmap!!, null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(30.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     listOf("MALE", "FEMALE").forEach { g ->
                         val sel = selectedGender.uppercase() == g
                         Button(
                             onClick = { selectedGender = if (g == "MALE") "Male" else "Female"; customImageBase64 = null; if (selectedImage.isEmpty()) selectedImage = imageNames[0] },
-                            modifier = Modifier.weight(1f).height(48.dp),
-                            shape = RoundedCornerShape(24.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = if (sel) accent else accent.copy(0.05f), contentColor = if (sel) surface else accent)
-                        ) { Text(g, fontSize = 12.sp, fontWeight = FontWeight.Black) }
+                            modifier = Modifier.weight(1f).height(50.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = if (sel) accent else accent.copy(0.05f), contentColor = if (sel) surface else accent),
+                            border = if (!sel) BorderStroke(1.dp, accent.copy(0.1f)) else null
+                        ) { Text(g, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace) }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(30.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(15.dp)) {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
                     items(imageNames) { img ->
                         val sel = selectedImage == img
-                        Box(modifier = Modifier.size(60.dp).border(if (sel) 2.dp else 1.dp, if (sel) accent else accent.copy(0.1f), CircleShape).padding(4.dp).clip(CircleShape).clickable { selectedImage = img; customImageBase64 = null }) {
+                        Box(modifier = Modifier.size(64.dp).border(if (sel) 2.dp else 1.dp, if (sel) accent else accent.copy(0.1f), CircleShape).padding(4.dp).clip(CircleShape).clickable { selectedImage = img; customImageBase64 = null }) {
                             Image(painterResource("Memoji/$selectedGender/Circle/$img"), null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(40.dp))
+                Spacer(modifier = Modifier.height(48.dp))
 
                 Button(
                     onClick = {
@@ -158,11 +173,11 @@ fun WelcomeScreen(
                         } else onProfileComplete()
                     },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(28.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = surface)
                 ) {
                     if (isLoading) CircularProgressIndicator(color = surface, modifier = Modifier.size(20.dp))
-                    else Text("COMPLETE SETUP", fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+                    else Text("COMPLETE SETUP", fontWeight = FontWeight.Black, letterSpacing = 2.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                 }
             }
         }

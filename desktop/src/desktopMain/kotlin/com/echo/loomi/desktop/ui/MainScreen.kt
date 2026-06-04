@@ -125,7 +125,7 @@ fun MainScreen(
                         data.forEach { (key, value) -> if (key != uid) usersList.add(parseUserMap(key, value)) }
                     }
                 } else {
-                    val key = path.replace("/", "")
+                    val key = path.split("/").firstOrNull { it.isNotEmpty() } ?: return@launch
                     if (key != uid) {
                         FirebaseClient.read("users/$key") { userJson ->
                             if (userJson != null) {
@@ -187,111 +187,183 @@ fun MainScreen(
     }
 
     val filteredUsers = usersList.filter { it.name.contains(searchQuery, ignoreCase = true) }
-        .sortedByDescending { it.status == "Online" }
+        .sortedByDescending { it.status.equals("Online", ignoreCase = true) }
 
     Box(modifier = Modifier.fillMaxSize().background(surfaceColor)) {
         Row(modifier = Modifier.fillMaxSize()) {
-            // SIDEBAR
+            // SIDEBAR (Modern Nothing OS / Material Style)
             Column(
-                modifier = Modifier.width(320.dp).fillMaxHeight()
+                modifier = Modifier.width(340.dp).fillMaxHeight()
                     .drawBehind {
-                        drawLine(accentColor.copy(0.1f), Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
+                        drawLine(accentColor.copy(0.08f), Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
                     }
             ) {
                 // Header
-                Row(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    ProfileImage(currentUserImage, 40.dp)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(currentUserName.uppercase(), fontSize = 14.sp, fontWeight = FontWeight.Black, color = accentColor, letterSpacing = 1.sp, fontFamily = FontFamily.Monospace)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(contentAlignment = Alignment.BottomEnd) {
+                        ProfileImage(currentUserImage, 48.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .background(surfaceColor, CircleShape)
+                                .padding(2.dp)
+                                .background(Color(0xFF4CAF50), CircleShape)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            currentUserName.uppercase(),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Black,
+                            color = accentColor,
+                            letterSpacing = 1.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            "ONLINE",
+                            fontSize = 9.sp,
+                            color = Color(0xFF4CAF50),
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 1.sp
+                        )
+                    }
                     Spacer(modifier = Modifier.weight(1f))
-                    IconButton(onClick = onLogout) {
+                    IconButton(
+                        onClick = onLogout,
+                        modifier = Modifier.size(36.dp).background(accentColor.copy(0.05f), CircleShape)
+                    ) {
                         Icon(
                             painter = painterResource("drawable/setting_4.xml"),
                             contentDescription = "Settings",
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(18.dp),
                             tint = accentColor
                         )
                     }
                 }
 
-                // Modern Pill Search Bar
-                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
+                // Techy Search Bar
+                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                     TextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
                         modifier = Modifier.fillMaxWidth().height(52.dp),
-                        placeholder = { Text("Search nodes...", color = accentColor.copy(0.4f), fontSize = 14.sp) },
+                        placeholder = {
+                            Text(
+                                "SEARCH NODES...",
+                                color = accentColor.copy(0.3f),
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        },
                         leadingIcon = {
                             Icon(
                                 painter = painterResource("drawable/search.xml"),
                                 contentDescription = "Search",
-                                modifier = Modifier.size(20.dp),
+                                modifier = Modifier.size(18.dp),
                                 tint = accentColor.copy(0.4f)
                             )
                         },
                         colors = TextFieldDefaults.colors(
-                            focusedContainerColor = accentColor.copy(0.06f),
-                            unfocusedContainerColor = accentColor.copy(0.06f),
+                            focusedContainerColor = accentColor.copy(0.04f),
+                            unfocusedContainerColor = accentColor.copy(0.04f),
                             focusedIndicatorColor = Color.Transparent,
                             unfocusedIndicatorColor = Color.Transparent,
                             focusedTextColor = accentColor,
                             unfocusedTextColor = accentColor
                         ),
-                        textStyle = TextStyle(fontSize = 14.sp),
+                        textStyle = TextStyle(fontSize = 14.sp, fontFamily = FontFamily.Monospace),
                         singleLine = true,
-                        shape = RoundedCornerShape(26.dp)
+                        shape = RoundedCornerShape(12.dp)
                     )
                 }
 
-                // Users
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Users List
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     items(filteredUsers) { user ->
                         val isSelected = selectedUser?.uid == user.uid
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable { selectedUser = user }
-                                .background(if (isSelected) accentColor.copy(0.05f) else Color.Transparent)
-                                .padding(horizontal = 20.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        val isOnline = user.status.equals("Online", ignoreCase = true)
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable { selectedUser = user },
+                            color = if (isSelected) accentColor.copy(0.08f) else Color.Transparent,
+                            shape = RoundedCornerShape(16.dp),
+                            border = if (isSelected) BorderStroke(1.dp, accentColor.copy(0.1f)) else null
                         ) {
-                            ProfileImage(user.imageName, 44.dp)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(user.name.uppercase(), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accentColor, fontFamily = FontFamily.Monospace)
-                                val isOnline = user.status.equals("Online", ignoreCase = true)
-                                Text(
-                                    text = if (isOnline) "ONLINE" else "OFFLINE",
-                                    fontSize = 8.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = if (isOnline) Color(0xFF4CAF50) else accentColor.copy(0.2f),
-                                    fontFamily = FontFamily.Monospace,
-                                    letterSpacing = 1.sp
-                                )
-                                val msg = DesktopEncryptionUtils.decrypt(user.lastMessage)
-                                Row(modifier = Modifier.fillMaxWidth().padding(top = 2.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = if (msg.startsWith("img:")) "IMAGE" else msg.uppercase(),
-                                        fontSize = 10.sp,
-                                        color = accentColor.copy(0.4f),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f),
-                                        fontFamily = FontFamily.Monospace
-                                    )
-                                    if (!isOnline && user.lastSeen > 0) {
-                                        Text(
-                                            text = formatLastSeenShort(user.lastSeen),
-                                            fontSize = 8.sp,
-                                            color = accentColor.copy(0.3f),
-                                            fontFamily = FontFamily.Monospace,
-                                            modifier = Modifier.padding(start = 8.dp)
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(contentAlignment = Alignment.BottomEnd) {
+                                    ProfileImage(user.imageName, 52.dp)
+                                    if (isOnline) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(14.dp)
+                                                .background(if (isSelected) accentColor.copy(0.08f) else surfaceColor, CircleShape)
+                                                .padding(2.5.dp)
+                                                .background(Color(0xFF4CAF50), CircleShape)
                                         )
                                     }
+                                }
+
+                                Spacer(modifier = Modifier.width(16.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        user.name.uppercase(),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = accentColor,
+                                        fontFamily = FontFamily.Monospace,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+
+                                    val statusText = if (isOnline) "ONLINE" else "OFFLINE"
+                                    val lastSeenText = if (!isOnline && user.lastSeen > 0) " • ${formatLastSeenShort(user.lastSeen)}" else ""
+
+                                    Text(
+                                        text = statusText + lastSeenText,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isOnline) Color(0xFF4CAF50) else accentColor.copy(0.3f),
+                                        fontFamily = FontFamily.Monospace,
+                                        letterSpacing = 1.sp
+                                    )
+
+                                    Spacer(modifier = Modifier.height(2.dp))
+
+                                    val msg = DesktopEncryptionUtils.decrypt(user.lastMessage)
+                                    Text(
+                                        text = if (msg.startsWith("img:")) "IMAGE ATTACHMENT" else msg.uppercase(),
+                                        fontSize = 11.sp,
+                                        color = if (isSelected) accentColor.copy(0.7f) else accentColor.copy(0.4f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        fontFamily = FontFamily.Monospace,
+                                        letterSpacing = 0.5.sp
+                                    )
                                 }
                             }
                         }
                     }
                 }
             }
+
 
             // CHAT PANE
             Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
@@ -349,11 +421,29 @@ fun ChatPane(receiver: SnapUser, messages: List<ChatMessage>, accent: Color, sur
     LaunchedEffect(messages.size) { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            ProfileImage(receiver.imageName, 40.dp)
-            Spacer(modifier = Modifier.width(12.dp))
+        // Modern Chat Header
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(contentAlignment = Alignment.BottomEnd) {
+                ProfileImage(receiver.imageName, 44.dp)
+                val isOnline = receiver.status.equals("Online", ignoreCase = true)
+                if (isOnline) {
+                    Box(
+                        modifier = Modifier.size(12.dp).background(surface, CircleShape).padding(2.dp).background(Color(0xFF4CAF50), CircleShape)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(16.dp))
             Column {
-                Text(receiver.name.uppercase(), fontSize = 14.sp, fontWeight = FontWeight.Black, color = accent, fontFamily = FontFamily.Monospace)
+                Text(
+                    receiver.name.uppercase(),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Black,
+                    color = accent,
+                    fontFamily = FontFamily.Monospace
+                )
                 val isOnline = receiver.status.equals("Online", ignoreCase = true)
                 Text(
                     text = if (isOnline) "ONLINE" else "OFFLINE",
@@ -365,44 +455,112 @@ fun ChatPane(receiver: SnapUser, messages: List<ChatMessage>, accent: Color, sur
                 )
             }
             Spacer(modifier = Modifier.weight(1f))
-            IconButton(onClick = onCall) { Text("📞", color = accent) }
+            IconButton(
+                onClick = onCall,
+                modifier = Modifier.size(40.dp).background(accent.copy(0.05f), CircleShape)
+            ) {
+                Text("📞", fontSize = 18.sp)
+            }
         }
 
-        Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp)) {
-            LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Messages Area with Nothing OS style bubbles
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 items(messages) { msg ->
                     val isMe = msg.senderId == FirebaseClient.currentUid
                     val decrypted = DesktopEncryptionUtils.decrypt(msg.message)
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start) {
-                        Box(modifier = Modifier.widthIn(max = 400.dp).background(if (isMe) accent else accent.copy(0.05f), RoundedCornerShape(12.dp)).border(1.dp, accent.copy(0.1f), RoundedCornerShape(12.dp)).padding(12.dp)) {
-                            if (decrypted.startsWith("img:")) {
-                                // Image logic simplified for brevity - uses ProfileImage helper style
-                                Text("IMAGE NODE", color = if (isMe) surface else accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                            } else {
-                                Text(decrypted.uppercase(), color = if (isMe) surface else accent, fontSize = 13.sp, lineHeight = 18.sp, fontFamily = FontFamily.Monospace)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
+                    ) {
+                        Column(horizontalAlignment = if (isMe) Alignment.End else Alignment.Start) {
+                            Box(
+                                modifier = Modifier
+                                    .widthIn(max = 480.dp)
+                                    .background(
+                                        if (isMe) accent else accent.copy(0.04f),
+                                        RoundedCornerShape(
+                                            topStart = 16.dp,
+                                            topEnd = 16.dp,
+                                            bottomStart = if (isMe) 16.dp else 2.dp,
+                                            bottomEnd = if (isMe) 2.dp else 16.dp
+                                        )
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (isMe) Color.Transparent else accent.copy(0.08f),
+                                        RoundedCornerShape(
+                                            topStart = 16.dp,
+                                            topEnd = 16.dp,
+                                            bottomStart = if (isMe) 16.dp else 2.dp,
+                                            bottomEnd = if (isMe) 2.dp else 16.dp
+                                        )
+                                    )
+                                    .padding(14.dp)
+                            ) {
+                                if (decrypted.startsWith("img:")) {
+                                    Text(
+                                        "IMAGE NODE",
+                                        color = if (isMe) surface else accent,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                } else {
+                                    Text(
+                                        decrypted.uppercase(),
+                                        color = if (isMe) surface else accent,
+                                        fontSize = 13.sp,
+                                        lineHeight = 18.sp,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
                             }
+                            Text(
+                                text = formatMessageTime(msg.timestamp),
+                                fontSize = 8.sp,
+                                color = accent.copy(0.3f),
+                                modifier = Modifier.padding(top = 4.dp),
+                                fontFamily = FontFamily.Monospace
+                            )
                         }
                     }
                 }
             }
         }
 
-        // Modern Message Input Bar
-        Row(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+        // Modern Input Bar
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             TextField(
-                value = input, onValueChange = { input = it },
+                value = input,
+                onValueChange = { input = it },
                 modifier = Modifier.weight(1f).height(52.dp),
-                placeholder = { Text("Write a message...", color = accent.copy(0.4f), fontSize = 14.sp) },
+                placeholder = {
+                    Text(
+                        "MESSAGE NODE...",
+                        color = accent.copy(0.3f),
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                },
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = accent.copy(0.06f),
-                    unfocusedContainerColor = accent.copy(0.06f),
+                    focusedContainerColor = accent.copy(0.04f),
+                    unfocusedContainerColor = accent.copy(0.04f),
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
                     focusedTextColor = accent,
                     unfocusedTextColor = accent
                 ),
-                textStyle = TextStyle(fontSize = 14.sp),
-                shape = RoundedCornerShape(26.dp),
+                textStyle = TextStyle(fontSize = 14.sp, fontFamily = FontFamily.Monospace),
+                shape = RoundedCornerShape(12.dp),
                 singleLine = true
             )
             Spacer(modifier = Modifier.width(12.dp))
@@ -416,18 +574,25 @@ fun ChatPane(receiver: SnapUser, messages: List<ChatMessage>, accent: Color, sur
                         input = ""
                     }
                 },
-                modifier = Modifier.size(52.dp).background(accent, CircleShape)
+                modifier = Modifier.size(52.dp).background(accent, RoundedCornerShape(12.dp))
             ) {
                 Icon(
                     painter = painterResource("drawable/send.xml"),
                     contentDescription = "Send",
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(22.dp),
                     tint = surface
                 )
             }
         }
     }
 }
+
+fun formatMessageTime(timestamp: Long): String {
+    val date = java.util.Date(timestamp)
+    val sdf = java.text.SimpleDateFormat("HH:mm")
+    return sdf.format(date)
+}
+
 
 @Composable
 fun SOSOverlay(accent: Color, surface: Color, onCancel: () -> Unit) {
