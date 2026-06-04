@@ -1,0 +1,8 @@
+
+# Ignore build artifacts and IDE files
+.gradle/
+.idea/
+.kotlin/
+build/
+local.properties
+*.klib

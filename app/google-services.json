@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "125517755986",
+    "project_id": "echo-loomi-app",
+    "storage_bucket": "echo-loomi-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:125517755986:android:3e98ec6be8da8a18b4d18b",
+        "android_client_info": {
+          "package_name": "com.echo.loomi"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "125517755986-d90kcmnq1bhohv9n460girmg988r9eaq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBD6MdIxvvmUNjuPitgpUkQo_7OFX5vjMc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "125517755986-d90kcmnq1bhohv9n460girmg988r9eaq.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
