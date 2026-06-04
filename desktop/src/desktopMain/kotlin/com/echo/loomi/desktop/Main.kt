@@ -68,7 +68,7 @@ fun main() = application {
             }
             exitApplication()
         },
-        title = "Loomi Desktop Node",
+        title = "LOOMI",
         state = rememberWindowState(
             position = WindowPosition(Alignment.Center),
             width = 1100.dp, 

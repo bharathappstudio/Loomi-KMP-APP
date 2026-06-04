@@ -3,12 +3,15 @@ package com.echo.loomi.desktop.ui
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +24,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.loadImageBitmap
 import androidx.compose.ui.res.painterResource
@@ -34,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.shadow
 import com.echo.loomi.desktop.network.FirebaseClient
 import com.echo.loomi.desktop.utils.DesktopEncryptionUtils
 import com.google.gson.Gson
@@ -87,8 +92,12 @@ fun MainScreen(
 ) {
     val scope = rememberCoroutineScope()
     val isDark = isSystemInDarkTheme()
+    
+    // Apple-style color palette
+    val surfaceColor = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
+    val sidebarColor = if (isDark) Color(0xFF2C2C2E) else Color(0xFFFFFFFF)
     val accentColor = if (isDark) Color.White else Color.Black
-    val surfaceColor = if (isDark) Color.Black else Color.White
+    val blueColor = Color(0xFF494444)
 
     // Database states
     val usersList = remember { mutableStateListOf<SnapUser>() }
@@ -189,174 +198,152 @@ fun MainScreen(
     val filteredUsers = usersList.filter { it.name.contains(searchQuery, ignoreCase = true) }
         .sortedByDescending { it.status.equals("Online", ignoreCase = true) }
 
-    Box(modifier = Modifier.fillMaxSize().background(surfaceColor)) {
-        Row(modifier = Modifier.fillMaxSize()) {
-            // SIDEBAR (Modern Nothing OS / Material Style)
-            Column(
-                modifier = Modifier.width(340.dp).fillMaxHeight()
-                    .drawBehind {
-                        drawLine(accentColor.copy(0.08f), Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
-                    }
-            ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(contentAlignment = Alignment.BottomEnd) {
-                        ProfileImage(currentUserImage, 48.dp)
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .background(surfaceColor, CircleShape)
-                                .padding(2.dp)
-                                .background(Color(0xFF4CAF50), CircleShape)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column {
-                        Text(
-                            currentUserName.uppercase(),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Black,
-                            color = accentColor,
-                            letterSpacing = 1.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
-                        Text(
-                            "ONLINE",
-                            fontSize = 9.sp,
-                            color = Color(0xFF4CAF50),
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            letterSpacing = 1.sp
-                        )
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
-                    IconButton(
-                        onClick = onLogout,
-                        modifier = Modifier.size(36.dp).background(accentColor.copy(0.05f), CircleShape)
-                    ) {
-                        Icon(
-                            painter = painterResource("drawable/setting_4.xml"),
-                            contentDescription = "Settings",
-                            modifier = Modifier.size(18.dp),
-                            tint = accentColor
-                        )
-                    }
-                }
+    val isCallActive = callState != CallState.IDLE && activeCallData != null
+    val screenBlur by animateDpAsState(if (isCallActive) 60.dp else 0.dp)
 
-                // Techy Search Bar
-                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    TextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                        placeholder = {
-                            Text(
-                                "SEARCH NODES...",
-                                color = accentColor.copy(0.3f),
-                                fontSize = 12.sp,
-                                fontFamily = FontFamily.Monospace
+    Box(modifier = Modifier.fillMaxSize().background(surfaceColor)) {
+        Row(modifier = Modifier.fillMaxSize().blur(screenBlur)) {
+            // SIDEBAR (macOS Style)
+            Surface(
+                modifier = Modifier.width(320.dp).fillMaxHeight(),
+                color = sidebarColor,
+                tonalElevation = 2.dp
+            ) {
+                Column {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 16.dp, top = 24.dp, bottom = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painter = painterResource("drawable/logo.xml"),
+                            contentDescription = "Loomi",
+                            modifier = Modifier.height(28.dp),
+                            contentScale = ContentScale.Fit,
+                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(accentColor)
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        IconButton(onClick = onLogout) {
+                            Icon(
+                                painter = painterResource("drawable/setting_4.xml"),
+                                contentDescription = "Settings",
+                                tint = accentColor.copy(0.6f),
+                                modifier = Modifier.size(20.dp)
                             )
-                        },
-                        leadingIcon = {
+                        }
+                    }
+
+                    // Search Bar
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .height(36.dp)
+                            .background(if (isDark) Color(0xFF3A3A3C) else Color(0xFFE3E3E8), RoundedCornerShape(10.dp)),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp)
+                        ) {
                             Icon(
                                 painter = painterResource("drawable/search.xml"),
                                 contentDescription = "Search",
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(16.dp),
                                 tint = accentColor.copy(0.4f)
                             )
-                        },
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = accentColor.copy(0.04f),
-                            unfocusedContainerColor = accentColor.copy(0.04f),
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            focusedTextColor = accentColor,
-                            unfocusedTextColor = accentColor
-                        ),
-                        textStyle = TextStyle(fontSize = 14.sp, fontFamily = FontFamily.Monospace),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Users List
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    items(filteredUsers) { user ->
-                        val isSelected = selectedUser?.uid == user.uid
-                        val isOnline = user.status.equals("Online", ignoreCase = true)
-
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable { selectedUser = user },
-                            color = if (isSelected) accentColor.copy(0.08f) else Color.Transparent,
-                            shape = RoundedCornerShape(16.dp),
-                            border = if (isSelected) BorderStroke(1.dp, accentColor.copy(0.1f)) else null
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(contentAlignment = Alignment.BottomEnd) {
-                                    ProfileImage(user.imageName, 52.dp)
-                                    if (isOnline) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(14.dp)
-                                                .background(if (isSelected) accentColor.copy(0.08f) else surfaceColor, CircleShape)
-                                                .padding(2.5.dp)
-                                                .background(Color(0xFF4CAF50), CircleShape)
-                                        )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            BasicTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                modifier = Modifier.weight(1f),
+                                textStyle = TextStyle(fontSize = 14.sp, color = accentColor),
+                                cursorBrush = SolidColor(Color(0xFF007AFF)),
+                                singleLine = true,
+                                decorationBox = { innerTextField ->
+                                    Box {
+                                        if (searchQuery.isEmpty()) {
+                                            Text(
+                                                "Search",
+                                                color = accentColor.copy(0.4f),
+                                                fontSize = 14.sp
+                                            )
+                                        }
+                                        innerTextField()
                                     }
                                 }
+                            )
+                        }
+                    }
 
-                                Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        user.name.uppercase(),
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = accentColor,
-                                        fontFamily = FontFamily.Monospace,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                    // Users List
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        items(filteredUsers) { user ->
+                            val isSelected = selectedUser?.uid == user.uid
+                            val isOnline = user.status.equals("Online", ignoreCase = true)
 
-                                    val statusText = if (isOnline) "ONLINE" else "OFFLINE"
-                                    val lastSeenText = if (!isOnline && user.lastSeen > 0) " • ${formatLastSeenShort(user.lastSeen)}" else ""
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { selectedUser = user },
+                                color = if (isSelected) blueColor else Color.Transparent,
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    ProfileImage(user.imageName, 44.dp)
 
-                                    Text(
-                                        text = statusText + lastSeenText,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isOnline) Color(0xFF4CAF50) else accentColor.copy(0.3f),
-                                        fontFamily = FontFamily.Monospace,
-                                        letterSpacing = 1.sp
-                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
 
-                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            user.name,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = if (isSelected) Color.White else accentColor,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
 
-                                    val msg = DesktopEncryptionUtils.decrypt(user.lastMessage)
-                                    Text(
-                                        text = if (msg.startsWith("img:")) "IMAGE ATTACHMENT" else msg.uppercase(),
-                                        fontSize = 11.sp,
-                                        color = if (isSelected) accentColor.copy(0.7f) else accentColor.copy(0.4f),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        fontFamily = FontFamily.Monospace,
-                                        letterSpacing = 0.5.sp
-                                    )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = if (isOnline) "Online" else "Offline",
+                                                fontSize = 11.sp,
+                                                color = if (isOnline) Color(0xFF34C759) else (if (isSelected) Color.White.copy(0.6f) else accentColor.copy(0.4f)),
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            
+                                            val msg = DesktopEncryptionUtils.decrypt(user.lastMessage)
+                                            if (msg.isNotEmpty()) {
+                                                Text(
+                                                    text = " • " + (if (msg.startsWith("img:")) "Image" else msg),
+                                                    fontSize = 11.sp,
+                                                    color = if (isSelected) Color.White.copy(0.6f) else accentColor.copy(0.4f),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.padding(start = 2.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    
+                                    if (user.lastSeen > 0 && !isOnline) {
+                                        Text(
+                                            text = formatLastSeenShort(user.lastSeen),
+                                            fontSize = 10.sp,
+                                            color = if (isSelected) Color.White.copy(0.6f) else accentColor.copy(0.3f),
+                                            modifier = Modifier.padding(start = 4.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -369,14 +356,16 @@ fun MainScreen(
             Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 if (selectedUser == null) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Image(
-                            painter = painterResource("drawable/grop_chart.xml"),
-                            contentDescription = "No node selected",
-                            modifier = Modifier.size(320.dp) // 100% clear (no alpha 0.2)
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Image(
+                                painter = painterResource("drawable/grop_chart.xml"),
+                                contentDescription = "Select a conversation",
+                                modifier = Modifier.size(440.dp)
+                            )
+                        }
                     }
                 } else {
-                    ChatPane(selectedUser!!, messagesList, accentColor, surfaceColor) {
+                    ChatPane(selectedUser!!, messagesList, accentColor, surfaceColor, isDark) {
                         val uid = FirebaseClient.currentUid ?: return@ChatPane
                         val callData = CallData(uid, selectedUser!!.uid, DesktopEncryptionUtils.encrypt(currentUserName), DesktopEncryptionUtils.encrypt(currentUserImage), "ringing")
                         FirebaseClient.write("calls/${selectedUser!!.uid}", callData)
@@ -387,183 +376,289 @@ fun MainScreen(
             }
         }
 
-        // Overlays (Simplified Nothing Style)
-        if (callState != CallState.IDLE && activeCallData != null) {
+        // Call Overlay (FaceTime style)
+        if (isCallActive) {
+            val uid = FirebaseClient.currentUid
+            val isIStartedIt = activeCallData?.callerId == uid
             val isIncoming = callState == CallState.INCOMING
-            val name = if (isIncoming) DesktopEncryptionUtils.decrypt(activeCallData!!.callerName) else selectedUser?.name ?: "NODE"
-            Box(modifier = Modifier.fillMaxSize().background(accentColor).padding(40.dp), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(name.uppercase(), fontSize = 32.sp, fontWeight = FontWeight.Black, color = surfaceColor, fontFamily = FontFamily.Monospace)
-                    Text(callState.name, fontSize = 12.sp, color = surfaceColor.copy(0.5f), letterSpacing = 4.sp, fontFamily = FontFamily.Monospace)
-                    Spacer(modifier = Modifier.height(60.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            
+            // The person on the other end of the line (always show the peer)
+            val peerImage = if (isIStartedIt) {
+                selectedUser?.imageName ?: ""
+            } else {
+                DesktopEncryptionUtils.decrypt(activeCallData?.callerImage ?: "")
+            }
+            
+            val peerName = if (isIStartedIt) {
+                selectedUser?.name ?: "Contact"
+            } else {
+                DesktopEncryptionUtils.decrypt(activeCallData?.callerName ?: "")
+            }
+            
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Background is the main UI blurred (via screenBlur on the Row below)
+
+                // Call Content (Sharp Image, Name & Round Buttons)
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(vertical = 60.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Peer Name at Top
+                    Text(
+                        text = peerName.uppercase(),
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Black,
+                        color = accentColor,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 4.sp,
+                        modifier = Modifier.padding(top = 20.dp)
+                    )
+
+                    // Sharp Profile Image in Middle
+                    Box(modifier = Modifier.shadow(60.dp, CircleShape)) {
+                        ProfileImage(peerImage, 240.dp)
+                    }
+
+                    Row(
+                        modifier = Modifier.padding(bottom = 40.dp),
+                        horizontalArrangement = Arrangement.spacedBy(100.dp)
+                    ) {
                         if (isIncoming) {
-                            Button(onClick = { FirebaseClient.write("calls/${FirebaseClient.currentUid}/status", "accepted") }, colors = ButtonDefaults.buttonColors(containerColor = surfaceColor, contentColor = accentColor)) { Text("ACCEPT") }
-                            Button(onClick = { FirebaseClient.delete("calls/${FirebaseClient.currentUid}") }, colors = ButtonDefaults.buttonColors(containerColor = surfaceColor.copy(0.2f), contentColor = surfaceColor)) { Text("DECLINE") }
+                            // Accept (Answer)
+                            Box(
+                                modifier = Modifier
+                                    .size(96.dp)
+                                    .shadow(30.dp, CircleShape)
+                                    .background(Color(0xFF34C759), CircleShape)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) { FirebaseClient.write("calls/${FirebaseClient.currentUid}/status", "accepted") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource("drawable/call.xml"),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(40.dp),
+                                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
+                                )
+                            }
+                            // Decline (Cut)
+                            Box(
+                                modifier = Modifier
+                                    .size(96.dp)
+                                    .shadow(30.dp, CircleShape)
+                                    .background(Color(0xFFFF3B30), CircleShape)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) { FirebaseClient.delete("calls/${FirebaseClient.currentUid}") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource("drawable/call.xml"),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(40.dp).graphicsLayer(rotationZ = 135f),
+                                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
+                                )
+                            }
                         } else {
-                            Button(onClick = { FirebaseClient.delete("calls/${activeCallData!!.receiverId}"); callState = CallState.IDLE }, colors = ButtonDefaults.buttonColors(containerColor = surfaceColor, contentColor = accentColor)) { Text("END CALL") }
+                            // End Call (Cut)
+                            Box(
+                                modifier = Modifier
+                                    .size(96.dp)
+                                    .shadow(30.dp, CircleShape)
+                                    .background(Color(0xFFFF3B30), CircleShape)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) { 
+                                        activeCallData?.let { data ->
+                                            val receiverId = if (isIStartedIt) data.receiverId else data.callerId
+                                            FirebaseClient.delete("calls/$receiverId")
+                                        }
+                                        callState = CallState.IDLE 
+                                        activeCallData = null
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource("drawable/call.xml"),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(40.dp).graphicsLayer(rotationZ = 135f),
+                                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
+                                )
+                            }
                         }
                     }
                 }
             }
         }
-
-        if (showSOSOverlay) {
-            SOSOverlay(accentColor, surfaceColor) { showSOSOverlay = false }
-        }
     }
 }
 
 @Composable
-fun ChatPane(receiver: SnapUser, messages: List<ChatMessage>, accent: Color, surface: Color, onCall: () -> Unit) {
+fun ChatPane(receiver: SnapUser, messages: List<ChatMessage>, accent: Color, surface: Color, isDark: Boolean, onCall: () -> Unit) {
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     LaunchedEffect(messages.size) { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Modern Chat Header
+        // iOS Style Header
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .drawBehind {
+                    drawLine(accent.copy(0.05f), Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx())
+                },
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(contentAlignment = Alignment.BottomEnd) {
-                ProfileImage(receiver.imageName, 44.dp)
-                val isOnline = receiver.status.equals("Online", ignoreCase = true)
-                if (isOnline) {
-                    Box(
-                        modifier = Modifier.size(12.dp).background(surface, CircleShape).padding(2.dp).background(Color(0xFF4CAF50), CircleShape)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(16.dp))
+            ProfileImage(receiver.imageName, 40.dp)
+            Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
                     receiver.name.uppercase(),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Black,
                     color = accent,
-                    fontFamily = FontFamily.Monospace
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 1.sp
                 )
                 val isOnline = receiver.status.equals("Online", ignoreCase = true)
                 Text(
-                    text = if (isOnline) "ONLINE" else "OFFLINE",
+                    text = if (isOnline) "● ENCRYPTED" else "○ OFFLINE",
                     fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
                     color = if (isOnline) Color(0xFF4CAF50) else accent.copy(0.3f),
                     fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
             }
             Spacer(modifier = Modifier.weight(1f))
-            IconButton(
-                onClick = onCall,
-                modifier = Modifier.size(40.dp).background(accent.copy(0.05f), CircleShape)
-            ) {
-                Text("📞", fontSize = 18.sp)
+            IconButton(onClick = onCall) {
+                Icon(
+                    painter = painterResource("drawable/call.xml"),
+                    contentDescription = "Call",
+                    tint = Color(0xFF007AFF),
+                    modifier = Modifier.size(24.dp)
+                )
             }
         }
 
-        // Messages Area with Nothing OS style bubbles
+        // Messages Area
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 items(messages) { msg ->
                     val isMe = msg.senderId == FirebaseClient.currentUid
+                    val isDark = isSystemInDarkTheme()
                     val decrypted = DesktopEncryptionUtils.decrypt(msg.message)
+                    
+                    val bubbleShape = RoundedCornerShape(
+                        topStart = 22.dp,
+                        topEnd = 22.dp,
+                        bottomStart = if (isMe) 22.dp else 8.dp,
+                        bottomEnd = if (isMe) 5.dp else 22.dp
+                    )
+
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp),
                         horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
                     ) {
-                        Column(horizontalAlignment = if (isMe) Alignment.End else Alignment.Start) {
-                            Box(
-                                modifier = Modifier
-                                    .widthIn(max = 480.dp)
-                                    .background(
-                                        if (isMe) accent else accent.copy(0.04f),
-                                        RoundedCornerShape(
-                                            topStart = 16.dp,
-                                            topEnd = 16.dp,
-                                            bottomStart = if (isMe) 16.dp else 2.dp,
-                                            bottomEnd = if (isMe) 2.dp else 16.dp
-                                        )
-                                    )
-                                    .border(
-                                        1.dp,
-                                        if (isMe) Color.Transparent else accent.copy(0.08f),
-                                        RoundedCornerShape(
-                                            topStart = 16.dp,
-                                            topEnd = 16.dp,
-                                            bottomStart = if (isMe) 16.dp else 2.dp,
-                                            bottomEnd = if (isMe) 2.dp else 16.dp
-                                        )
-                                    )
-                                    .padding(14.dp)
-                            ) {
-                                if (decrypted.startsWith("img:")) {
-                                    Text(
-                                        "IMAGE NODE",
-                                        color = if (isMe) surface else accent,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = FontFamily.Monospace
+                        Column(
+                            modifier = Modifier
+                                .widthIn(max = 480.dp)
+                                .clip(bubbleShape)
+                                .background(
+                                    if (isMe) (if (isDark) Color.White.copy(0.2f) else Color(0xFFC8E6C9).copy(alpha = 0.4f)) 
+                                    else (if (isDark) Color.White.copy(0.1f) else Color(0xFFFFECB3).copy(alpha = 0.45f))
+                                )
+                                .border(1.dp, Color.White.copy(alpha = if (isDark) 0.1f else 0.80f), bubbleShape)
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                        ) {
+                            if (decrypted.startsWith("img:")) {
+                                val base64Data = decrypted.substring(4)
+                                var imageBitmap by remember(base64Data) { mutableStateOf<ImageBitmap?>(null) }
+                                
+                                LaunchedEffect(base64Data) {
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            val bytes = Base64.getDecoder().decode(base64Data.replace("\\s".toRegex(), ""))
+                                            imageBitmap = loadImageBitmap(bytes.inputStream())
+                                        } catch (e: Exception) {}
+                                    }
+                                }
+
+                                if (imageBitmap != null) {
+                                    Image(
+                                        bitmap = imageBitmap!!,
+                                        contentDescription = "Image message",
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(max = 350.dp)
+                                            .clip(RoundedCornerShape(12.dp)),
+                                        contentScale = ContentScale.Crop
                                     )
                                 } else {
-                                    Text(
-                                        decrypted.uppercase(),
-                                        color = if (isMe) surface else accent,
-                                        fontSize = 13.sp,
-                                        lineHeight = 18.sp,
-                                        fontFamily = FontFamily.Monospace
-                                    )
+                                    Text("LOADING IMAGE...", fontSize = 11.sp, color = accent.copy(0.4f))
                                 }
+                            } else {
+                                Text(
+                                    text = decrypted,
+                                    fontSize = 15.sp,
+                                    lineHeight = 22.sp,
+                                    color = if (isMe) (if (isDark) Color.White else accent) else (if (isDark) Color.White else accent.copy(0.7f))
+                                )
                             }
-                            Text(
-                                text = formatMessageTime(msg.timestamp),
-                                fontSize = 8.sp,
-                                color = accent.copy(0.3f),
-                                modifier = Modifier.padding(top = 4.dp),
-                                fontFamily = FontFamily.Monospace
-                            )
                         }
                     }
                 }
             }
         }
 
-        // Modern Input Bar
+        // Nothing-Style Input Bar
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 24.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextField(
-                value = input,
-                onValueChange = { input = it },
-                modifier = Modifier.weight(1f).height(52.dp),
-                placeholder = {
-                    Text(
-                        "MESSAGE NODE...",
-                        color = accent.copy(0.3f),
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = accent.copy(0.04f),
-                    unfocusedContainerColor = accent.copy(0.04f),
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    focusedTextColor = accent,
-                    unfocusedTextColor = accent
-                ),
-                textStyle = TextStyle(fontSize = 14.sp, fontFamily = FontFamily.Monospace),
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true
-            )
-            Spacer(modifier = Modifier.width(12.dp))
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(if (isDark) Color(0xFF2C2C2E) else accent.copy(0.04f), RoundedCornerShape(8.dp))
+                    .border(1.dp, accent.copy(0.08f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                BasicTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = TextStyle(fontSize = 14.sp, color = accent, fontFamily = FontFamily.Monospace, letterSpacing = 0.5.sp),
+                    cursorBrush = SolidColor(Color(0xFFFF3B30)), // Nothing Red cursor
+                    decorationBox = { innerTextField ->
+                        Box {
+                            if (input.isEmpty()) {
+                                Text(
+                                    "INPUT DATA TO NODE...", 
+                                    color = accent.copy(0.2f), 
+                                    fontSize = 12.sp, 
+                                    fontFamily = FontFamily.Monospace,
+                                    letterSpacing = 1.sp
+                                )
+                            }
+                            innerTextField()
+                        }
+                    }
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
             IconButton(
                 onClick = {
                     if (input.isNotBlank()) {
@@ -574,13 +669,15 @@ fun ChatPane(receiver: SnapUser, messages: List<ChatMessage>, accent: Color, sur
                         input = ""
                     }
                 },
-                modifier = Modifier.size(52.dp).background(accent, RoundedCornerShape(12.dp))
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(if (input.isNotBlank()) Color(0xFFFF3B30) else accent.copy(0.1f), CircleShape)
             ) {
                 Icon(
                     painter = painterResource("drawable/send.xml"),
                     contentDescription = "Send",
-                    modifier = Modifier.size(22.dp),
-                    tint = surface
+                    modifier = Modifier.size(20.dp),
+                    tint = if (input.isNotBlank()) Color.White else accent.copy(0.3f)
                 )
             }
         }
@@ -593,20 +690,6 @@ fun formatMessageTime(timestamp: Long): String {
     return sdf.format(date)
 }
 
-
-@Composable
-fun SOSOverlay(accent: Color, surface: Color, onCancel: () -> Unit) {
-    var count by remember { mutableStateOf(5) }
-    LaunchedEffect(Unit) { while (count > 0) { delay(1000); count-- }; onCancel() }
-    Box(modifier = Modifier.fillMaxSize().background(Color.Red).padding(40.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("SOS BROADCAST", fontSize = 24.sp, fontWeight = FontWeight.Black, color = Color.White, fontFamily = FontFamily.Monospace)
-            Text(count.toString(), fontSize = 120.sp, fontWeight = FontWeight.Black, color = Color.White, fontFamily = FontFamily.Monospace)
-            Button(onClick = onCancel, colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Red)) { Text("CANCEL") }
-        }
-    }
-}
-
 @Composable
 fun ProfileImage(path: String, size: androidx.compose.ui.unit.Dp) {
     var bitmap by remember(path) { mutableStateOf<ImageBitmap?>(null) }
@@ -617,7 +700,6 @@ fun ProfileImage(path: String, size: androidx.compose.ui.unit.Dp) {
                     val bytes = Base64.getDecoder().decode(path.substringAfter("base64,").replace("\\s".toRegex(), ""))
                     bitmap = loadImageBitmap(bytes.inputStream())
                 } else if (path.startsWith("http")) {
-                    // Use a stream for high-quality loading
                     val connection = URL(path).openConnection()
                     connection.connectTimeout = 5000
                     connection.readTimeout = 5000
@@ -630,8 +712,7 @@ fun ProfileImage(path: String, size: androidx.compose.ui.unit.Dp) {
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(Color.Gray.copy(0.05f))
-            .border(1.dp, Color.White.copy(0.1f), CircleShape),
+            .background(if (isSystemInDarkTheme()) Color(0xFF3A3A3C) else Color(0xFFE5E5EA)),
         contentAlignment = Alignment.Center
     ) {
         if (bitmap != null) {
@@ -639,10 +720,9 @@ fun ProfileImage(path: String, size: androidx.compose.ui.unit.Dp) {
                 bitmap = bitmap!!,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop // Ensures 100% fill with real quality
+                contentScale = ContentScale.Crop
             )
         } else if (path.isNotEmpty() && !path.contains(":")) {
-            // Local resource (Memoji/icons)
             Image(
                 painter = painterResource(path),
                 contentDescription = null,
@@ -650,21 +730,21 @@ fun ProfileImage(path: String, size: androidx.compose.ui.unit.Dp) {
                 contentScale = ContentScale.Crop
             )
         } else {
-            Text("👤", fontSize = (size.value * 0.4).sp)
+            Text("👤", fontSize = (size.value * 0.4).sp, color = if (isSystemInDarkTheme()) Color.White else Color.Black)
         }
     }
 }
 
-fun parseUserMap(uid: String, map: Map<String, Any>): SnapUser = SnapUser(uid, map["name"] as? String ?: "NODE", map["status"] as? String ?: "OFFLINE", (map["lastSeen"] as? Number)?.toLong() ?: 0L, map["lastMessage"] as? String ?: "", (map["lastMessageTime"] as? Number)?.toLong() ?: 0L, map["imageName"] as? String ?: "")
+fun parseUserMap(uid: String, map: Map<String, Any>): SnapUser = SnapUser(uid, map["name"] as? String ?: "Contact", map["status"] as? String ?: "Offline", (map["lastSeen"] as? Number)?.toLong() ?: 0L, map["lastMessage"] as? String ?: "", (map["lastMessageTime"] as? Number)?.toLong() ?: 0L, map["imageName"] as? String ?: "")
 
 fun formatLastSeenShort(time: Long): String {
     val diff = System.currentTimeMillis() - time
     val min = diff / 60000
     val hr = min / 60
     return when {
-        min < 1 -> "JUST NOW"
-        min < 60 -> "${min}M"
-        hr < 24 -> "${hr}H"
-        else -> "${hr / 24}D"
+        min < 1 -> "now"
+        min < 60 -> "${min}m"
+        hr < 24 -> "${hr}h"
+        else -> "${hr / 24}d"
     }
 }
