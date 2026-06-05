@@ -41,6 +41,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.input.key.*
 import com.echo.loomi.desktop.network.FirebaseClient
 import com.echo.loomi.desktop.utils.DesktopEncryptionUtils
 import com.google.gson.Gson
@@ -510,6 +511,26 @@ fun MainScreen(
 fun ChatPane(receiver: SnapUser, messages: List<ChatMessage>, accent: Color, surface: Color, isDark: Boolean, onCall: () -> Unit) {
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    
+    val sendMessage = {
+        if (input.isNotBlank()) {
+            val uid = FirebaseClient.currentUid
+            if (uid != null) {
+                val cid = if (uid < receiver.uid) "${uid}_${receiver.uid}" else "${receiver.uid}_$uid"
+                val msg = ChatMessage(
+                    UUID.randomUUID().toString(),
+                    uid,
+                    receiver.uid,
+                    DesktopEncryptionUtils.encrypt(input.trim()),
+                    System.currentTimeMillis()
+                )
+                FirebaseClient.push("chats/$cid", msg) {}
+                input = ""
+            }
+        }
+    }
+
     LaunchedEffect(messages.size) { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1) }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -647,7 +668,14 @@ fun ChatPane(receiver: SnapUser, messages: List<ChatMessage>, accent: Color, sur
                 BasicTextField(
                     value = input,
                     onValueChange = { input = it },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onPreviewKeyEvent {
+                            if (it.key == Key.Enter && it.type == KeyEventType.KeyDown) {
+                                sendMessage()
+                                true
+                            } else false
+                        },
                     textStyle = TextStyle(fontSize = 14.sp, color = accent, fontFamily = FontFamily.Monospace, letterSpacing = 0.5.sp),
                     cursorBrush = SolidColor(Color(0x80FF3B30)), // Nothing Red cursor
                     decorationBox = { innerTextField ->
@@ -668,15 +696,7 @@ fun ChatPane(receiver: SnapUser, messages: List<ChatMessage>, accent: Color, sur
             }
             Spacer(modifier = Modifier.width(16.dp))
             IconButton(
-                onClick = {
-                    if (input.isNotBlank()) {
-                        val uid = FirebaseClient.currentUid ?: return@IconButton
-                        val cid = if (uid < receiver.uid) "${uid}_${receiver.uid}" else "${receiver.uid}_$uid"
-                        val msg = ChatMessage(UUID.randomUUID().toString(), uid, receiver.uid, DesktopEncryptionUtils.encrypt(input.trim()), System.currentTimeMillis())
-                        FirebaseClient.push("chats/$cid", msg) {}
-                        input = ""
-                    }
-                },
+                onClick = { sendMessage() },
                 modifier = Modifier
                     .size(48.dp)
                     .background(if (input.isNotBlank()) Color(0xFFFF3B30) else accent.copy(0.1f), CircleShape)
