@@ -17,8 +17,8 @@ import com.google.gson.JsonParser
 import java.io.File
 
 private const val SCREEN_LOGIN = 0
-private const val SCREEN_WELCOME = 1
-private const val SCREEN_MAIN = 2
+private const val SCREEN_MAIN = 1
+private const val SCREEN_WELCOME = 2
 
 private val SESSION_FILE = File(System.getProperty("user.home"), ".gemini/antigravity/loomi_session.json")
 
@@ -49,7 +49,7 @@ fun main() = application {
                         val cleanDbImage = if (dbImageName == "null" || dbImageName == null) "" else dbImageName.replace("\"", "")
                         val finalImage = if (cleanDbImage.isEmpty()) data.imageName else cleanDbImage
                         session = data.copy(imageName = finalImage)
-                        currentScreen = if (finalImage.isEmpty()) SCREEN_WELCOME else SCREEN_MAIN
+                        currentScreen = SCREEN_MAIN
                     }
                 }
             } catch (e: Exception) {
@@ -111,24 +111,6 @@ fun main() = application {
                         }
                     )
                 }
-                SCREEN_WELCOME -> {
-                    WelcomeScreen(
-                        googlePhotoUrl = session?.photoUrl ?: "",
-                        onProfileComplete = {
-                            // Re-read to get new imageName
-                            val uid = session?.uid ?: return@WelcomeScreen
-                            FirebaseClient.read("users/$uid/imageName") { dbImageName ->
-                                val cleanImageName = dbImageName?.replace("\"", "") ?: ""
-                                session?.let {
-                                    val updatedSession = it.copy(imageName = cleanImageName)
-                                    session = updatedSession
-                                    saveSession(updatedSession)
-                                }
-                                currentScreen = SCREEN_MAIN
-                            }
-                        }
-                    )
-                }
                 SCREEN_MAIN -> {
                     session?.let {
                         MainScreen(
@@ -140,6 +122,25 @@ fun main() = application {
                                 FirebaseClient.authToken = null
                                 FirebaseClient.currentUid = null
                                 currentScreen = SCREEN_LOGIN
+                            },
+                            onProfileClick = {
+                                currentScreen = SCREEN_WELCOME
+                            }
+                        )
+                    }
+                }
+                SCREEN_WELCOME -> {
+                    session?.let {
+                        WelcomeScreen(
+                            googlePhotoUrl = it.photoUrl,
+                            onProfileComplete = {
+                                // Refresh session with new image name if needed
+                                FirebaseClient.read("users/${it.uid}/imageName") { dbImageName ->
+                                    val cleanDbImage = if (dbImageName == "null" || dbImageName == null) "" else dbImageName.replace("\"", "")
+                                    session = it.copy(imageName = cleanDbImage)
+                                    saveSession(session!!)
+                                    currentScreen = SCREEN_MAIN
+                                }
                             }
                         )
                     }

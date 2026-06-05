@@ -70,9 +70,9 @@ fun LoginScreen(
                 modifier = Modifier
                     .width(400.dp)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(19.dp))
                     .background(themeSurface)
-                    .border(1.dp, themeBorder, RoundedCornerShape(16.dp))
+                    .border(2.dp, themeBorder, RoundedCornerShape(16.dp))
                     .padding(40.dp)
             ) {
                 Column(
@@ -170,9 +170,9 @@ fun LoginScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(30.dp))
                     .background(Color.Black) // Dark base for fast loading feel
-                    .border(1.dp, themeBorder, RoundedCornerShape(16.dp))
+                    .border(2.dp, themeBorder, RoundedCornerShape(30.dp))
             ) {
                 SwingPanel(
                     modifier = Modifier.fillMaxSize(),

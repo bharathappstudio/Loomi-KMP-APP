@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.loadImageBitmap
@@ -62,8 +63,24 @@ fun WelcomeScreen(
         if (googlePhotoUrl.isNotEmpty()) {
             withContext(Dispatchers.IO) {
                 try {
-                    googleBitmap = loadImageBitmap(URL(googlePhotoUrl).openStream())
-                } catch (e: Exception) {}
+                    // Request high quality from Google
+                    val highResUrl = if (googlePhotoUrl.contains("googleusercontent.com")) {
+                        if (googlePhotoUrl.contains("=")) {
+                            googlePhotoUrl.substringBeforeLast("=") + "=s512-c"
+                        } else if (googlePhotoUrl.contains("/s96-c/")) {
+                            googlePhotoUrl.replace("/s96-c/", "/s512-c/")
+                        } else {
+                            "$googlePhotoUrl=s512-c"
+                        }
+                    } else googlePhotoUrl
+                    
+                    val connection = URL(highResUrl).openConnection()
+                    connection.connectTimeout = 10000
+                    connection.readTimeout = 10000
+                    googleBitmap = loadImageBitmap(connection.getInputStream())
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
         }
     }
@@ -90,9 +107,26 @@ fun WelcomeScreen(
                 contentAlignment = Alignment.Center
             ) {
                 when {
-                    customBitmap != null -> Image(customBitmap!!, null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    selectedImage.isEmpty() && googleBitmap != null -> Image(googleBitmap!!, null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    else -> Image(painterResource("Memoji/$selectedGender/Circle/$selectedImage"), null, modifier = Modifier.fillMaxSize().padding(10.dp), contentScale = ContentScale.Crop)
+                    customBitmap != null -> Image(
+                        customBitmap!!, 
+                        null, 
+                        modifier = Modifier.fillMaxSize(), 
+                        contentScale = ContentScale.Crop,
+                        filterQuality = FilterQuality.High
+                    )
+                    selectedImage.isEmpty() && googleBitmap != null -> Image(
+                        googleBitmap!!, 
+                        null, 
+                        modifier = Modifier.fillMaxSize(), 
+                        contentScale = ContentScale.Crop,
+                        filterQuality = FilterQuality.High
+                    )
+                    else -> Image(
+                        painter = painterResource("Memoji/$selectedGender/Circle/$selectedImage"), 
+                        contentDescription = null, 
+                        modifier = Modifier.fillMaxSize().padding(10.dp), 
+                        contentScale = ContentScale.Crop
+                    )
                 }
             }
 
@@ -115,7 +149,12 @@ fun WelcomeScreen(
                             }
                         }
                     }, contentAlignment = Alignment.Center) {
-                        Text("↑", fontSize = 24.sp, color = accent)
+                        Image(
+                            painter = painterResource("drawable/image.xml"),
+                            contentDescription = "Upload",
+                            modifier = Modifier.size(20.dp),
+                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(accent)
+                        )
                     }
                     
                     if (googleBitmap != null) {

@@ -3,6 +3,7 @@ package com.echo.loomi.desktop.ui
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,6 +24,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
@@ -84,11 +86,13 @@ enum class CallState {
     IDLE, INCOMING, OUTGOING, ONGOING
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MainScreen(
     currentUserName: String,
     currentUserImage: String,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onProfileClick: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val isDark = isSystemInDarkTheme()
@@ -97,7 +101,7 @@ fun MainScreen(
     val surfaceColor = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
     val sidebarColor = if (isDark) Color(0xFF2C2C2E) else Color(0xFFFFFFFF)
     val accentColor = if (isDark) Color.White else Color.Black
-    val blueColor = Color(0xFF494444)
+    val blueColor = Color(0xB3494444)
 
     // Database states
     val usersList = remember { mutableStateListOf<SnapUser>() }
@@ -223,13 +227,17 @@ fun MainScreen(
                             colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(accentColor)
                         )
                         Spacer(modifier = Modifier.weight(1f))
-                        IconButton(onClick = onLogout) {
-                            Icon(
-                                painter = painterResource("drawable/setting_4.xml"),
-                                contentDescription = "Settings",
-                                tint = accentColor.copy(0.6f),
-                                modifier = Modifier.size(20.dp)
-                            )
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .shadow(2.dp, CircleShape)
+                                .clip(CircleShape)
+                                .combinedClickable(
+                                    onClick = { onProfileClick() },
+                                    onLongClick = { onLogout() }
+                                )
+                        ) {
+                            ProfileImage(currentUserImage, 34.dp)
                         }
                     }
 
@@ -318,7 +326,7 @@ fun MainScreen(
                                             Text(
                                                 text = if (isOnline) "Online" else "Offline",
                                                 fontSize = 11.sp,
-                                                color = if (isOnline) Color(0xFF34C759) else (if (isSelected) Color.White.copy(0.6f) else accentColor.copy(0.4f)),
+                                                color = if (isSelected) Color.White.copy(0.6f) else accentColor.copy(0.4f),
                                                 fontWeight = FontWeight.Medium
                                             )
                                             
@@ -528,9 +536,9 @@ fun ChatPane(receiver: SnapUser, messages: List<ChatMessage>, accent: Color, sur
                 )
                 val isOnline = receiver.status.equals("Online", ignoreCase = true)
                 Text(
-                    text = if (isOnline) "● ENCRYPTED" else "○ OFFLINE",
+                    text = if (isOnline) "ONLINE" else "OFFLINE",
                     fontSize = 9.sp,
-                    color = if (isOnline) Color(0xFF4CAF50) else accent.copy(0.3f),
+                    color = accent.copy(0.4f),
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
@@ -641,7 +649,7 @@ fun ChatPane(receiver: SnapUser, messages: List<ChatMessage>, accent: Color, sur
                     onValueChange = { input = it },
                     modifier = Modifier.fillMaxWidth(),
                     textStyle = TextStyle(fontSize = 14.sp, color = accent, fontFamily = FontFamily.Monospace, letterSpacing = 0.5.sp),
-                    cursorBrush = SolidColor(Color(0xFFFF3B30)), // Nothing Red cursor
+                    cursorBrush = SolidColor(Color(0x80FF3B30)), // Nothing Red cursor
                     decorationBox = { innerTextField ->
                         Box {
                             if (input.isEmpty()) {
@@ -700,7 +708,18 @@ fun ProfileImage(path: String, size: androidx.compose.ui.unit.Dp) {
                     val bytes = Base64.getDecoder().decode(path.substringAfter("base64,").replace("\\s".toRegex(), ""))
                     bitmap = loadImageBitmap(bytes.inputStream())
                 } else if (path.startsWith("http")) {
-                    val connection = URL(path).openConnection()
+                    // Request high quality from Google
+                    val highResUrl = if (path.contains("googleusercontent.com")) {
+                        if (path.contains("=")) {
+                            path.substringBeforeLast("=") + "=s512-c"
+                        } else if (path.contains("/s96-c/")) {
+                            path.replace("/s96-c/", "/s512-c/")
+                        } else {
+                            "$path=s512-c"
+                        }
+                    } else path
+                    
+                    val connection = URL(highResUrl).openConnection()
                     connection.connectTimeout = 5000
                     connection.readTimeout = 5000
                     bitmap = loadImageBitmap(connection.getInputStream())
@@ -720,7 +739,8 @@ fun ProfileImage(path: String, size: androidx.compose.ui.unit.Dp) {
                 bitmap = bitmap!!,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
+                contentScale = ContentScale.Crop,
+                filterQuality = FilterQuality.High
             )
         } else if (path.isNotEmpty() && !path.contains(":")) {
             Image(
