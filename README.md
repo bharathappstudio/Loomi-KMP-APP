@@ -77,7 +77,23 @@ Loomi/
 ./gradlew :desktop:packageMsi       # Windows (.msi)
 ./gradlew :desktop:packageDmg       # macOS (.dmg)
 ./gradlew :desktop:packageDeb       # Linux (.deb)
-./gradlew :desktop:packageUberJarForCurrentOS # Standalone JAR
+./gradlew :desktop:createDistributable # Portable folder
+```
+
+### 🐧 Arch Linux / Archcraft Setup
+To build and install on Arch-based systems:
+```bash
+# 1. Install build dependencies
+sudo pacman -S dpkg fakeroot
+
+# 2. Build the .deb package
+./gradlew :desktop:packageDeb
+
+# 3. Convert to Arch package using debtap
+debtap desktop/build/compose/binaries/main/deb/loomi_1.0.0_amd64.deb
+
+# 4. Install the package
+sudo pacman -U loomi-1.0.0-1-x86_64.pkg.tar.zst
 ```
 
 ### 🍎 iOS (Requires Mac + Xcode)

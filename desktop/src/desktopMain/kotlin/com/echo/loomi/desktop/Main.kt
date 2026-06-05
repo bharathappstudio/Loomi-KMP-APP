@@ -14,6 +14,7 @@ import com.echo.loomi.desktop.ui.WelcomeScreen
 import com.echo.loomi.desktop.ui.theme.LoomiTheme
 import com.google.gson.Gson
 import com.google.gson.JsonParser
+import javafx.application.Platform
 import java.io.File
 
 private const val SCREEN_LOGIN = 0
@@ -31,36 +32,49 @@ data class SessionData(
     val imageName: String = ""
 )
 
-fun main() = application {
+fun main(args: Array<String>) {
+    // Initialize JavaFX once at startup
+    try {
+        Platform.startup {}
+    } catch (e: Exception) {}
+
+    startApp()
+}
+
+fun startApp() = application {
     var currentScreen by remember { mutableStateOf(SCREEN_LOGIN) }
     var session by remember { mutableStateOf<SessionData?>(null) }
     
-    // Auto-load session if exists
     LaunchedEffect(Unit) {
+        println("Main: Checking for existing session at ${SESSION_FILE.absolutePath}")
         if (SESSION_FILE.exists()) {
             try {
                 val json = SESSION_FILE.readText()
+                println("Main: Session file found. Attempting to parse...")
                 val data = Gson().fromJson(json, SessionData::class.java)
                 if (data != null) {
+                    println("Main: Session parsed for UID: ${data.uid}. Initializing Auth...")
                     FirebaseClient.initAuth(data.idToken, data.uid)
-                    
-                    // Fetch latest imageName from database to make sure it matches
                     FirebaseClient.read("users/${data.uid}/imageName") { dbImageName ->
+                        println("Main: Read imageName from Firebase: $dbImageName")
                         val cleanDbImage = if (dbImageName == "null" || dbImageName == null) "" else dbImageName.replace("\"", "")
                         val finalImage = if (cleanDbImage.isEmpty()) data.imageName else cleanDbImage
                         session = data.copy(imageName = finalImage)
                         currentScreen = SCREEN_MAIN
+                        println("Main: Navigating to Main Screen.")
                     }
                 }
             } catch (e: Exception) {
+                println("Main: Error during session restoration: ${e.message}")
                 e.printStackTrace()
             }
+        } else {
+            println("Main: No session file found.")
         }
     }
 
     Window(
         onCloseRequest = {
-            // Set offline status on exit
             val uid = FirebaseClient.currentUid
             if (uid != null) {
                 FirebaseClient.write("users/$uid/status", "Offline")
@@ -81,8 +95,6 @@ fun main() = application {
                     LoginScreen(
                         onLoginSuccess = { token, uid, name, email, photoUrl ->
                             FirebaseClient.initAuth(token, uid)
-                            
-                            // Check if profile is done (imageName exists in database)
                             FirebaseClient.read("users/$uid") { userJson ->
                                 var dbImageName = ""
                                 if (userJson != null && userJson != "null") {
@@ -92,7 +104,6 @@ fun main() = application {
                                     } catch (e: Exception) {}
                                 }
                                 
-                                // Save initial user data
                                 val userUpdates = mapOf(
                                     "uid" to uid,
                                     "name" to name,
@@ -104,8 +115,6 @@ fun main() = application {
                                 val newSession = SessionData(token, uid, name, email, photoUrl, dbImageName)
                                 session = newSession
                                 saveSession(newSession)
-
-                                // Fix: Go directly to Main Screen for 1-step login experience
                                 currentScreen = SCREEN_MAIN
                             }
                         }
@@ -134,7 +143,6 @@ fun main() = application {
                         WelcomeScreen(
                             googlePhotoUrl = it.photoUrl,
                             onProfileComplete = {
-                                // Refresh session with new image name if needed
                                 FirebaseClient.read("users/${it.uid}/imageName") { dbImageName ->
                                     val cleanDbImage = if (dbImageName == "null" || dbImageName == null) "" else dbImageName.replace("\"", "")
                                     session = it.copy(imageName = cleanDbImage)

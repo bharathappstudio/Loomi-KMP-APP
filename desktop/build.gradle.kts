@@ -39,26 +39,27 @@ kotlin {
         val desktopMain by getting {
             dependsOn(commonMain)
             dependencies {
-                implementation(compose.desktop.currentOs)
+                // Support for all Desktop platforms in one JAR
+                implementation(compose.desktop.linux_x64)
+                implementation(compose.desktop.windows_x64)
+                implementation(compose.desktop.macos_x64)
+                implementation(compose.desktop.macos_arm64)
+                
                 // Desktop specific dependencies (JVM only)
                 implementation("com.squareup.okhttp3:okhttp:4.12.0")
                 implementation("com.google.code.gson:gson:2.10.1")
                 implementation(libs.kotlinx.coroutines.swing)
                 
-                // JavaFX for WebView support
+                // JavaFX for WebView support - All platforms
                 val javafxVersion = "21.0.2"
-                val osName = System.getProperty("os.name").lowercase()
-                val targetOs = when {
-                    osName.contains("win") -> "win"
-                    osName.contains("mac") -> "mac"
-                    else -> "linux"
+                listOf("win", "mac", "mac-aarch64", "linux").forEach { os ->
+                    implementation("org.openjfx:javafx-base:$javafxVersion:$os")
+                    implementation("org.openjfx:javafx-graphics:$javafxVersion:$os")
+                    implementation("org.openjfx:javafx-controls:$javafxVersion:$os")
+                    implementation("org.openjfx:javafx-web:$javafxVersion:$os")
+                    implementation("org.openjfx:javafx-swing:$javafxVersion:$os")
+                    implementation("org.openjfx:javafx-media:$javafxVersion:$os")
                 }
-                implementation("org.openjfx:javafx-base:$javafxVersion:$targetOs")
-                implementation("org.openjfx:javafx-graphics:$javafxVersion:$targetOs")
-                implementation("org.openjfx:javafx-controls:$javafxVersion:$targetOs")
-                implementation("org.openjfx:javafx-web:$javafxVersion:$targetOs")
-                implementation("org.openjfx:javafx-swing:$javafxVersion:$targetOs")
-                implementation("org.openjfx:javafx-media:$javafxVersion:$targetOs")
             }
         }
         
@@ -77,7 +78,23 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "com.echo.loomi.desktop.MainKt"
+        jvmArgs += listOf(
+            "-Dcompose.application.dev.mode=false",
+            "-Djdk.gtk.version=3",
+            "-Dcompose.interop.blending=true",
+            "-Dcompose.swing.interop.expose.native.window=true",
+            "-Dskiko.renderApi=SOFTWARE", 
+            "--add-opens", "java.desktop/sun.awt=ALL-UNNAMED",
+            "--add-opens", "java.desktop/java.awt.event=ALL-UNNAMED",
+            "--add-opens", "java.desktop/sun.awt.X11=ALL-UNNAMED",
+            "--add-opens", "java.desktop/sun.swing=ALL-UNNAMED",
+            "--add-exports", "java.desktop/jdk.swing.interop=ALL-UNNAMED",
+            "--add-exports", "jdk.unsupported.desktop/jdk.swing.interop=ALL-UNNAMED"
+        )
         nativeDistributions {
+            // Include all required modules for networking, SSL, and WebView
+            modules("java.desktop", "java.net.http", "jdk.httpserver", "jdk.crypto.ec", "jdk.unsupported", "java.sql", "java.xml", "java.naming", "java.management", "java.instrument", "jdk.jsobject", "java.scripting", "jdk.unsupported.desktop")
+
             // Windows (.msi), macOS (.dmg), Linux (.deb)
             targetFormats(
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg, 

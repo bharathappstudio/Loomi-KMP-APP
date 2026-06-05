@@ -46,13 +46,6 @@ fun LoginScreen(
     val themeSurface = if (isDark) Color(0xFF121212) else Color.White
     val themeBorder = themeText.copy(alpha = 0.1f)
 
-    // Initialize JavaFX Platform
-    LaunchedEffect(Unit) {
-        try {
-            Platform.startup {}
-        } catch (e: Exception) {}
-    }
-
     Box(modifier = Modifier.fillMaxSize().background(themeBg)) {
         // Grid background effect
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -139,6 +132,7 @@ fun LoginScreen(
 
                         NothingButton("ACCESS_CORE", true, themeText, themeBg) {
                             if (emailInput.isNotBlank()) {
+                                println("LoginScreen: Using ACCESS_CORE (Mock Login) for $emailInput")
                                 isLoading = true
                                 scope.launch {
                                     delay(500)
