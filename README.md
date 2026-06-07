@@ -89,6 +89,9 @@ sudo pacman -S dpkg fakeroot
 # 2. Build the .deb package
 ./gradlew :desktop:packageDeb
 
+# 2. Create a Distributable Folder (Portable)
+./gradlew :desktop:createDistributable
+
 # 3. Convert to Arch package using debtap
 debtap desktop/build/compose/binaries/main/deb/loomi_1.0.0_amd64.deb
 

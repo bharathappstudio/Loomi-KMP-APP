@@ -78,6 +78,9 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "com.echo.loomi.desktop.MainKt"
+        // Force the use of system JDK for jpackage support
+        javaHome = "/usr/lib/jvm/java-17-openjdk"
+
         jvmArgs += listOf(
             "-Dcompose.application.dev.mode=false",
             "-Djdk.gtk.version=3",
