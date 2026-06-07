@@ -8,7 +8,11 @@ plugins {
 tasks.register("prepareKotlinBuildScriptModel") {}
 
 kotlin {
-    jvm("desktop")
+    jvm("desktop") {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
+    }
     
     // Add iOS Targets
     listOf(
@@ -78,7 +82,7 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "com.echo.loomi.desktop.MainKt"
-        // Force the use of system JDK for jpackage support
+        // Force the use of system JDK 17 for both compilation and packaging
         javaHome = "/usr/lib/jvm/java-17-openjdk"
 
         jvmArgs += listOf(
