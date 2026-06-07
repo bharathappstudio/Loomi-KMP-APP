@@ -15,6 +15,7 @@ import com.echo.loomi.desktop.ui.theme.LoomiTheme
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import javafx.application.Platform
+import kotlinx.coroutines.runBlocking
 import java.io.File
 
 private const val SCREEN_LOGIN = 0
@@ -77,8 +78,10 @@ fun startApp() = application {
         onCloseRequest = {
             val uid = FirebaseClient.currentUid
             if (uid != null) {
-                FirebaseClient.write("users/$uid/status", "Offline")
-                FirebaseClient.write("users/$uid/lastSeen", System.currentTimeMillis())
+                runBlocking {
+                    FirebaseClient.writeSync("users/$uid/status", "Offline")
+                    FirebaseClient.writeSync("users/$uid/lastSeen", System.currentTimeMillis())
+                }
             }
             exitApplication()
         },

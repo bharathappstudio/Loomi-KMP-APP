@@ -117,10 +117,14 @@ fun MainScreen(
     var activeCallData by remember { mutableStateOf<CallData?>(null) }
     var showSOSOverlay by remember { mutableStateOf(false) }
 
-    // Sync Online status
+    // Sync Online status & Heartbeat
     LaunchedEffect(Unit) {
         val uid = FirebaseClient.currentUid ?: return@LaunchedEffect
-        FirebaseClient.write("users/$uid/status", "Online")
+        while (true) {
+            FirebaseClient.write("users/$uid/status", "Online")
+            FirebaseClient.write("users/$uid/lastSeen", System.currentTimeMillis())
+            delay(20000) // Heartbeat every 20 seconds
+        }
     }
 
     // Sync Data
@@ -294,8 +298,9 @@ fun MainScreen(
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         items(filteredUsers) { user ->
+                            val isOnline = user.status.equals("Online", ignoreCase = true) && 
+                                          (System.currentTimeMillis() - user.lastSeen < 60000)
                             val isSelected = selectedUser?.uid == user.uid
-                            val isOnline = user.status.equals("Online", ignoreCase = true)
 
                             Surface(
                                 modifier = Modifier
@@ -555,7 +560,8 @@ fun ChatPane(receiver: SnapUser, messages: List<ChatMessage>, accent: Color, sur
                     fontFamily = FontFamily.Monospace,
                     letterSpacing = 1.sp
                 )
-                val isOnline = receiver.status.equals("Online", ignoreCase = true)
+                val isOnline = receiver.status.equals("Online", ignoreCase = true) && 
+                              (System.currentTimeMillis() - receiver.lastSeen < 60000)
                 Text(
                     text = if (isOnline) "ONLINE" else "OFFLINE",
                     fontSize = 9.sp,

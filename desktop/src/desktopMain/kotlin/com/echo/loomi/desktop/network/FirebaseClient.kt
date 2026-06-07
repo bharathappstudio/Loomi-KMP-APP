@@ -36,20 +36,27 @@ object FirebaseClient {
         return authToken != null && currentUid != null
     }
 
-    // Write (PUT) -> Overwrites path
-    fun write(path: String, value: Any, onComplete: (Boolean) -> Unit = {}) {
-        scope.launch {
+    // Write (PUT) -> Overwrites path (Suspending version for reliability)
+    suspend fun writeSync(path: String, value: Any): Boolean {
+        return withContext(Dispatchers.IO) {
             val url = "$DATABASE_URL/$path.json?auth=$authToken"
             val body = gson.toJson(value).toRequestBody(jsonMediaType)
             val request = Request.Builder().url(url).put(body).build()
             try {
                 client.newCall(request).execute().use { response ->
-                    onComplete(response.isSuccessful)
+                    response.isSuccessful
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                onComplete(false)
+                false
             }
+        }
+    }
+
+    fun write(path: String, value: Any, onComplete: (Boolean) -> Unit = {}) {
+        scope.launch {
+            val success = writeSync(path, value)
+            onComplete(success)
         }
     }
 

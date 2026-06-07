@@ -471,6 +471,18 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
             override fun onDataChange(snapshot: DataSnapshot) {
                 val connected = snapshot.getValue(Boolean::class.java) ?: false
                 isOffline = !connected
+
+                if (connected) {
+                    // Firebase special logic: marks user Offline automatically if they lose connection
+                    val statusRef = database.child("users").child(uid).child("status")
+                    val lastSeenRef = database.child("users").child(uid).child("lastSeen")
+
+                    statusRef.onDisconnect().setValue("Offline")
+                    lastSeenRef.onDisconnect().setValue(ServerValue.TIMESTAMP)
+
+                    // Mark as Online now that we are connected
+                    statusRef.setValue("Online")
+                }
             }
             override fun onCancelled(error: DatabaseError) {}
         })
@@ -1263,7 +1275,8 @@ fun SnapChatItem(user: SnapUser, onClick: () -> Unit, onLongClick: () -> Unit) {
                     if (user.lastMessage.startsWith("img:")) "Sent an image"
                     else EncryptionUtils.decrypt(user.lastMessage)
                 }
-                val statusText = if (displayMsg.isNotEmpty()) displayMsg else if (user.status == "Online") "Online" else formatLastSeen(user.lastSeen)
+                val isOnline = user.status == "Online" && (System.currentTimeMillis() - user.lastSeen < 60000)
+                val statusText = if (displayMsg.isNotEmpty()) displayMsg else if (isOnline) "Online" else formatLastSeen(user.lastSeen)
                 Text(text = "➤ ", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), fontSize = 11.sp, modifier = Modifier.padding(end = 4.dp))
                 Text(text = statusText, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), fontSize = 13.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
