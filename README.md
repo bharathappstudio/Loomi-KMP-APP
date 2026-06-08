@@ -75,6 +75,7 @@ Loomi/
 ### 📦 Generate Installers
 ```bash
 ./gradlew :desktop:packageMsi       # Windows (.msi)
+./gradlew :desktop:packageExe       # Windows (.exe)
 ./gradlew :desktop:packageDmg       # macOS (.dmg)
 ./gradlew :desktop:packageDeb       # Linux (.deb)
 ./gradlew :desktop:createDistributable # Portable folder
