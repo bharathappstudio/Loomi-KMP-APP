@@ -115,6 +115,7 @@ fun MainScreen(
     // Calling states
     var callState by remember { mutableStateOf(CallState.IDLE) }
     var activeCallData by remember { mutableStateOf<CallData?>(null) }
+    var callTicks by remember { mutableLongStateOf(0L) }
     var showSOSOverlay by remember { mutableStateOf(false) }
 
     // Sync Online status & Heartbeat
@@ -132,7 +133,7 @@ fun MainScreen(
         val uid = FirebaseClient.currentUid ?: return@LaunchedEffect
         val gson = Gson()
 
-        FirebaseClient.startListener("users") { _, path, json ->
+        FirebaseClient.startListener("users", onAuthError = { onLogout() }) { _, path, json ->
             scope.launch(Dispatchers.Main) {
                 if (json == "null") return@launch
                 if (path == "" || path == "/") {
@@ -161,21 +162,95 @@ fun MainScreen(
                 }
             }
         }
+    }
 
-        FirebaseClient.startListener("calls/$uid") { _, _, json ->
+    // Call Timer Logic
+    LaunchedEffect(callState) {
+        if (callState == CallState.ONGOING) {
+            callTicks = 0
+            while (callState == CallState.ONGOING) {
+                delay(1000)
+                callTicks++
+            }
+        }
+    }
+
+    // Stable Call Listener (Handles Incoming calls and Cleanup)
+    LaunchedEffect(Unit) {
+        val uid = FirebaseClient.currentUid ?: return@LaunchedEffect
+        val gson = Gson()
+        
+        FirebaseClient.startListener("calls/$uid", onAuthError = { onLogout() }) { _, _, json ->
             scope.launch(Dispatchers.Main) {
                 if (json == "null") {
-                    callState = CallState.IDLE
-                    activeCallData = null
+                    // Only go IDLE if we were in an INCOMING or ONGOING state where we were the receiver
+                    if (callState == CallState.INCOMING || (callState == CallState.ONGOING && activeCallData?.receiverId == uid)) {
+                        callState = CallState.IDLE
+                        activeCallData = null
+                        callTicks = 0
+                    }
                 } else {
-                    val data: CallData? = gson.fromJson(json, CallData::class.java)
-                    if (data != null) {
-                        activeCallData = data
-                        callState = when (data.status) {
-                            "ringing" -> CallState.INCOMING
-                            "accepted" -> CallState.ONGOING
-                            else -> CallState.IDLE
+                    try {
+                        val data: CallData? = gson.fromJson(json, CallData::class.java)
+                        if (data != null && data.callerId.isNotEmpty()) {
+                            val isFresh = System.currentTimeMillis() - data.timestamp < 30000
+                            if (isFresh || data.status == "accepted") {
+                                // We are the receiver
+                                if (data.status == "ringing") {
+                                    activeCallData = data
+                                    callState = CallState.INCOMING
+                                } else if (data.status == "accepted") {
+                                    activeCallData = data
+                                    callState = CallState.ONGOING
+                                }
+                            } else {
+                                // Automatically clean up stale incoming calls
+                                FirebaseClient.delete("calls/$uid")
+                            }
                         }
+                    } catch (e: Exception) {
+                        // Handle partial updates or string updates by reading full data once
+                        FirebaseClient.read("calls/$uid") { fullJson ->
+                            if (fullJson != null && fullJson != "null") {
+                                scope.launch(Dispatchers.Main) {
+                                    try {
+                                        val fullData = gson.fromJson(fullJson, CallData::class.java)
+                                        if (fullData != null && (System.currentTimeMillis() - fullData.timestamp < 30000 || fullData.status == "accepted")) {
+                                            activeCallData = fullData
+                                            if (fullData.status == "ringing") callState = CallState.INCOMING
+                                            else if (fullData.status == "accepted") callState = CallState.ONGOING
+                                        }
+                                    } catch (ex: Exception) {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Outgoing Call Monitor (Only active during OUTGOING or ONGOING as caller)
+    LaunchedEffect(callState) {
+        val uid = FirebaseClient.currentUid
+        if (callState == CallState.OUTGOING || (callState == CallState.ONGOING && activeCallData?.callerId == uid)) {
+            val receiverUid = activeCallData?.receiverId ?: return@LaunchedEffect
+            val gson = Gson()
+            
+            FirebaseClient.startListener("calls/$receiverUid", onAuthError = { onLogout() }) { _, _, json ->
+                scope.launch(Dispatchers.Main) {
+                    if (json == "null") {
+                        callState = CallState.IDLE
+                        activeCallData = null
+                    } else if (json != "null") {
+                        try {
+                            if (json.contains("\"accepted\"") || json.contains("accepted")) {
+                                if (callState == CallState.OUTGOING) callState = CallState.ONGOING
+                            } else if (json.contains("\"declined\"") || json.contains("\"ended\"")) {
+                                callState = CallState.IDLE
+                                activeCallData = null
+                            }
+                        } catch (e: Exception) {}
                     }
                 }
             }
@@ -188,7 +263,7 @@ fun MainScreen(
         messagesList.clear()
         if (receiver != null) {
             val chatId = if (uid < receiver.uid) "${uid}_${receiver.uid}" else "${receiver.uid}_$uid"
-            FirebaseClient.startListener("chats/$chatId") { _, _, _ ->
+            FirebaseClient.startListener("chats/$chatId", onAuthError = { onLogout() }) { _, _, _ ->
                 FirebaseClient.read("chats/$chatId") { json ->
                     if (json != null && json != "null") {
                         scope.launch(Dispatchers.Main) {
@@ -419,15 +494,34 @@ fun MainScreen(
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
                     // Peer Name at Top
-                    Text(
-                        text = peerName.uppercase(),
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Black,
-                        color = accentColor,
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 4.sp,
-                        modifier = Modifier.padding(top = 20.dp)
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = peerName.uppercase(),
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Black,
+                            color = accentColor,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 4.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = when (callState) {
+                                CallState.INCOMING -> "INCOMING CALL..."
+                                CallState.OUTGOING -> "CALLING..."
+                                CallState.ONGOING -> {
+                                    val mins = callTicks / 60
+                                    val secs = callTicks % 60
+                                    "${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}"
+                                }
+                                else -> ""
+                            },
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = accentColor.copy(0.4f),
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 2.sp
+                        )
+                    }
 
                     // Sharp Profile Image in Middle
                     Box(modifier = Modifier.shadow(60.dp, CircleShape)) {
@@ -489,8 +583,8 @@ fun MainScreen(
                                         indication = null
                                     ) { 
                                         activeCallData?.let { data ->
-                                            val receiverId = if (isIStartedIt) data.receiverId else data.callerId
-                                            FirebaseClient.delete("calls/$receiverId")
+                                            // The call node is always at the receiver's UID
+                                            FirebaseClient.delete("calls/${data.receiverId}")
                                         }
                                         callState = CallState.IDLE 
                                         activeCallData = null

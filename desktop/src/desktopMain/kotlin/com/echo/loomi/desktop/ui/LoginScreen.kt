@@ -26,8 +26,10 @@ import javafx.application.Platform
 import javafx.embed.swing.JFXPanel
 import javafx.scene.Scene
 import javafx.scene.web.WebView
+import javafx.concurrent.Worker
 import java.net.URI
 import java.awt.Desktop
+import java.io.File
 import javax.swing.JPanel
 import java.awt.BorderLayout
 
@@ -165,22 +167,59 @@ fun LoginScreen(
                     .weight(1f)
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(30.dp))
-                    .background(Color.Black) // Dark base for fast loading feel
+                    .background(Color.Black)
                     .border(2.dp, themeBorder, RoundedCornerShape(30.dp))
             ) {
+                val webPanel = remember { JFXPanel() }
+                var webViewInstance by remember { mutableStateOf<WebView?>(null) }
+                
+                LaunchedEffect(Unit) {
+                    Platform.runLater {
+                        val webView = WebView()
+                        webView.engine.isJavaScriptEnabled = true
+                        
+                        // Optimization: Set a persistent cache directory for faster subsequent loads
+                        val cacheDir = File(System.getProperty("user.home"), ".loomi/web_cache")
+                        if (!cacheDir.exists()) cacheDir.mkdirs()
+                        webView.engine.userDataDirectory = cacheDir
+                        
+                        webView.engine.load("https://authentic-slide-917706.framer.app/")
+                        
+                        // Remove scrolling once the page loads
+                        webView.engine.loadWorker.stateProperty().addListener { _, _, newState ->
+                            if (newState == Worker.State.SUCCEEDED) {
+                                webView.engine.executeScript("""
+                                    document.body.style.overflow = 'hidden';
+                                    document.documentElement.style.overflow = 'hidden';
+                                    document.body.style.touchAction = 'none';
+                                """)
+                                // Initial theme sync
+                                val mode = if (isDark) "dark" else "light"
+                                webView.engine.executeScript("document.documentElement.style.colorScheme = '$mode';")
+                            }
+                        }
+
+                        val scene = Scene(webView)
+                        webPanel.scene = scene
+                        webViewInstance = webView
+                    }
+                }
+
+                // Sync theme changes in real-time
+                LaunchedEffect(isDark) {
+                    val webView = webViewInstance ?: return@LaunchedEffect
+                    Platform.runLater {
+                        val mode = if (isDark) "dark" else "light"
+                        webView.engine.executeScript("""
+                            document.documentElement.style.colorScheme = '$mode';
+                            if (window.framerTheme) window.framerTheme.setTheme('$mode');
+                        """)
+                    }
+                }
+
                 SwingPanel(
                     modifier = Modifier.fillMaxSize(),
-                    factory = {
-                        val jfxPanel = JFXPanel()
-                        Platform.runLater {
-                            val webView = WebView()
-                            webView.engine.isJavaScriptEnabled = true
-                            webView.engine.load("https://authentic-slide-917706.framer.app/")
-                            val scene = Scene(webView)
-                            jfxPanel.scene = scene
-                        }
-                        jfxPanel
-                    }
+                    factory = { webPanel }
                 )
             }
         }

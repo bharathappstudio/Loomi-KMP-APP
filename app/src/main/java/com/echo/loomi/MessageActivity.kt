@@ -214,13 +214,16 @@ fun MessageScreen(
 
     val context = LocalContext.current
 
-    LaunchedEffect(receiverUid) {
-        database.child("users").child(receiverUid).child("status").addValueEventListener(object : ValueEventListener {
+    DisposableEffect(receiverUid) {
+        val statusRef = database.child("users").child(receiverUid).child("status")
+        val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 receiverStatus = snapshot.getValue(String::class.java) ?: "Offline"
             }
             override fun onCancelled(error: DatabaseError) {}
-        })
+        }
+        statusRef.addValueEventListener(listener)
+        onDispose { statusRef.removeEventListener(listener) }
     }
 
     val cameraLauncher = rememberLauncherForActivityResult(
@@ -250,19 +253,21 @@ fun MessageScreen(
         isReady = true
     }
 
-    LaunchedEffect(chatId) {
-        database.child("chats").child(chatId).addValueEventListener(object : ValueEventListener {
+    // Listen for chat messages
+    DisposableEffect(chatId) {
+        val messagesRef = database.child("chats").child(chatId)
+        val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 messagesList.clear()
                 for (msgSnapshot in snapshot.children) {
                     val msg = msgSnapshot.getValue(ChatMessage::class.java)
-                    if (msg != null) {
-                        messagesList.add(msg)
-                    }
+                    if (msg != null) messagesList.add(msg)
                 }
             }
             override fun onCancelled(error: DatabaseError) {}
-        })
+        }
+        messagesRef.addValueEventListener(listener)
+        onDispose { messagesRef.removeEventListener(listener) }
     }
 
     LaunchedEffect(messagesList.size) {
@@ -272,34 +277,46 @@ fun MessageScreen(
     }
 
     // Listen for incoming calls for the current user
-    LaunchedEffect(currentUid) {
-        database.child("calls").child(currentUid).addValueEventListener(object : ValueEventListener {
+    DisposableEffect(currentUid) {
+        val incomingCallRef = database.child("calls").child(currentUid)
+        val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val callData = snapshot.getValue(CallData::class.java)
                 if (callData != null) {
                     activeCallData = callData
-                    if (callData.status == "ringing") {
-                        currentCallState = CallState.INCOMING
-                        showCallSheet = true
-                    } else if (callData.status == "accepted") {
-                        currentCallState = CallState.ONGOING
-                    } else if (callData.status == "declined" || callData.status == "ended") {
-                        showCallSheet = false
-                        currentCallState = CallState.IDLE
+                    when (callData.status) {
+                        "ringing" -> {
+                            currentCallState = CallState.INCOMING
+                            showCallSheet = true
+                        }
+                        "accepted" -> {
+                            currentCallState = CallState.ONGOING
+                        }
+                        "declined", "ended" -> {
+                            showCallSheet = false
+                            currentCallState = CallState.IDLE
+                            activeCallData = null
+                        }
                     }
                 } else if (currentCallState == CallState.INCOMING || currentCallState == CallState.ONGOING) {
                     showCallSheet = false
                     currentCallState = CallState.IDLE
+                    activeCallData = null
                 }
             }
             override fun onCancelled(error: DatabaseError) {}
-        })
+        }
+        incomingCallRef.addValueEventListener(listener)
+        onDispose { incomingCallRef.removeEventListener(listener) }
     }
 
     // Listen for outgoing call status (on the receiver's node)
-    LaunchedEffect(showCallSheet, currentCallState) {
+    DisposableEffect(showCallSheet, currentCallState) {
+        var outgoingListener: ValueEventListener? = null
+        val outgoingCallRef = database.child("calls").child(receiverUid)
+        
         if (currentCallState == CallState.OUTGOING) {
-            database.child("calls").child(receiverUid).addValueEventListener(object : ValueEventListener {
+            outgoingListener = object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
                     val status = snapshot.child("status").getValue(String::class.java)
                     if (status == "accepted") {
@@ -307,10 +324,15 @@ fun MessageScreen(
                     } else if (status == null || status == "declined" || status == "ended") {
                         showCallSheet = false
                         currentCallState = CallState.IDLE
+                        activeCallData = null
                     }
                 }
                 override fun onCancelled(error: DatabaseError) {}
-            })
+            }
+            outgoingCallRef.addValueEventListener(outgoingListener)
+        }
+        onDispose {
+            outgoingListener?.let { outgoingCallRef.removeEventListener(it) }
         }
     }
 

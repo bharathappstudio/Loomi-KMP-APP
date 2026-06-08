@@ -123,7 +123,11 @@ fun CallScreenContent(
             override fun onAddStream(p0: MediaStream?) {}
             override fun onRemoveStream(p0: MediaStream?) {}
             override fun onRenegotiationNeeded() {}
-            override fun onAddTrack(p0: RtpReceiver?, p1: Array<out MediaStream>?) {}
+            override fun onAddTrack(receiver: RtpReceiver?, streams: Array<out MediaStream>?) {
+                Log.d("CallActivity", "Remote track added. Should be audible now.")
+                // Most modern WebRTC implementations handle audio routing automatically 
+                // if JavaAudioDeviceModule is properly initialized (which we fixed).
+            }
             override fun onSignalingChange(p0: PeerConnection.SignalingState?) {}
         })
     }
@@ -152,13 +156,10 @@ fun CallScreenContent(
         callRef.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 if (!snapshot.exists()) {
-                    // Only finish if it's not the initial load or if the call was already active
-                    if (callState == CallState.ONGOING || !isIncoming) {
-                        Log.d("CallActivity", "Call data removed, finishing call.")
-                        callState = CallState.ENDED
-                        rtcManager.endCall()
-                        onFinish()
-                    }
+                    // If call data is removed, end UI for both users immediately
+                    Log.d("CallActivity", "Call data removed, finishing call UI.")
+                    rtcManager.endCall()
+                    onFinish()
                 } else {
                     val status = snapshot.child("status").getValue(String::class.java)
                     val sdp = snapshot.child("sdp").getValue(String::class.java)

@@ -3,6 +3,7 @@ package com.echo.loomi
 import android.content.Context
 import android.util.Log
 import org.webrtc.*
+import org.webrtc.audio.JavaAudioDeviceModule
 import java.util.ArrayList
 
 class RTCManager(
@@ -35,9 +36,14 @@ class RTCManager(
     }
 
     private fun createPeerConnectionFactory(): PeerConnectionFactory {
-        val options = PeerConnectionFactory.Options()
+        val audioDeviceModule = JavaAudioDeviceModule.builder(context)
+            .setUseHardwareAcousticEchoCanceler(true)
+            .setUseHardwareNoiseSuppressor(true)
+            .createAudioDeviceModule()
+
         return PeerConnectionFactory.builder()
-            .setOptions(options)
+            .setAudioDeviceModule(audioDeviceModule)
+            .setOptions(PeerConnectionFactory.Options())
             .createPeerConnectionFactory()
     }
 
@@ -48,9 +54,17 @@ class RTCManager(
     }
 
     fun startLocalAudio() {
+        if (localAudioTrack != null) return 
+        
         val audioConstraints = MediaConstraints()
+        audioConstraints.mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation", "true"))
+        audioConstraints.mandatory.add(MediaConstraints.KeyValuePair("googNoiseSuppression", "true"))
+        audioConstraints.mandatory.add(MediaConstraints.KeyValuePair("googAutoGainControl", "true"))
+        audioConstraints.mandatory.add(MediaConstraints.KeyValuePair("googHighpassFilter", "true"))
+        
         localAudioSource = peerConnectionFactory?.createAudioSource(audioConstraints)
         localAudioTrack = peerConnectionFactory?.createAudioTrack("ARDAMSa0", localAudioSource)
+        localAudioTrack?.setEnabled(true)
         
         peerConnection?.addTrack(localAudioTrack, listOf("ARDAMS"))
     }

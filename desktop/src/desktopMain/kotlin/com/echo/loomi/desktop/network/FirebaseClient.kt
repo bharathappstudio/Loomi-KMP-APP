@@ -138,7 +138,11 @@ object FirebaseClient {
     }
 
     // Listen (SSE Stream) -> Listens to database path in real-time
-    fun startListener(path: String, onUpdate: (event: String, childPath: String, json: String) -> Unit) {
+    fun startListener(
+        path: String, 
+        onAuthError: () -> Unit = {},
+        onUpdate: (event: String, childPath: String, json: String) -> Unit
+    ) {
         // Stop any existing listener on this path
         stopListener(path)
 
@@ -155,6 +159,14 @@ object FirebaseClient {
                 try {
                     call = client.newCall(request)
                     val response = call.execute()
+                    
+                    if (response.code == 401) {
+                        println("FirebaseClient: Auth error (401) on path: $path")
+                        response.close()
+                        onAuthError()
+                        break // Stop retrying on auth error
+                    }
+
                     if (!response.isSuccessful) {
                         response.close()
                         throw IOException("HTTP error: ${response.code}")

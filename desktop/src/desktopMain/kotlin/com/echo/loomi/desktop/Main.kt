@@ -15,6 +15,7 @@ import com.echo.loomi.desktop.ui.theme.LoomiTheme
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import javafx.application.Platform
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.io.File
 
@@ -45,6 +46,7 @@ fun main(args: Array<String>) {
 fun startApp() = application {
     var currentScreen by remember { mutableStateOf(SCREEN_LOGIN) }
     var session by remember { mutableStateOf<SessionData?>(null) }
+    val scope = rememberCoroutineScope()
     
     LaunchedEffect(Unit) {
         println("Main: Checking for existing session at ${SESSION_FILE.absolutePath}")
@@ -78,6 +80,7 @@ fun startApp() = application {
         onCloseRequest = {
             val uid = FirebaseClient.currentUid
             if (uid != null) {
+                // Use a dedicated scope to ensure the write finishes before exit
                 runBlocking {
                     FirebaseClient.writeSync("users/$uid/status", "Offline")
                     FirebaseClient.writeSync("users/$uid/lastSeen", System.currentTimeMillis())
@@ -129,11 +132,18 @@ fun startApp() = application {
                             currentUserName = it.name,
                             currentUserImage = it.imageName,
                             onLogout = {
-                                SESSION_FILE.delete()
-                                session = null
-                                FirebaseClient.authToken = null
-                                FirebaseClient.currentUid = null
-                                currentScreen = SCREEN_LOGIN
+                                scope.launch {
+                                    val uid = FirebaseClient.currentUid
+                                    if (uid != null) {
+                                        FirebaseClient.writeSync("users/$uid/status", "Offline")
+                                        FirebaseClient.writeSync("users/$uid/lastSeen", System.currentTimeMillis())
+                                    }
+                                    SESSION_FILE.delete()
+                                    session = null
+                                    FirebaseClient.authToken = null
+                                    FirebaseClient.currentUid = null
+                                    currentScreen = SCREEN_LOGIN
+                                }
                             },
                             onProfileClick = {
                                 currentScreen = SCREEN_WELCOME

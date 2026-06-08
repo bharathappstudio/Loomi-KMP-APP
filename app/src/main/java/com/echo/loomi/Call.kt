@@ -27,6 +27,8 @@ import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
+import kotlinx.coroutines.delay
+import java.util.Locale
 
 enum class CallState {
     IDLE, INCOMING, OUTGOING, ONGOING, ENDED
@@ -119,12 +121,26 @@ fun CallBottomSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Call Status
+            // Call Status & Timer
+            var ticks by remember { mutableLongStateOf(0L) }
+            if (callState == CallState.ONGOING) {
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        delay(1000)
+                        ticks++
+                    }
+                }
+            }
+
             Text(
                 text = when (callState) {
                     CallState.INCOMING -> "Incoming call..."
                     CallState.OUTGOING -> "Calling..."
-                    CallState.ONGOING -> "00:00"
+                    CallState.ONGOING -> {
+                        val minutes = ticks / 60
+                        val seconds = ticks % 60
+                        String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+                    }
                     CallState.ENDED -> "Call ended"
                     CallState.IDLE -> ""
                 },
