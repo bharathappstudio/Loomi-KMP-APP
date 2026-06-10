@@ -82,22 +82,32 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "com.echo.loomi.desktop.MainKt"
-        // Force the use of system JDK 17 for both compilation and packaging
-        javaHome = "/usr/lib/jvm/java-17-openjdk"
+        
+        val osName = System.getProperty("os.name").lowercase()
+        
+        // Use JAVA_HOME if available, otherwise fallback to Linux default for packaging
+        (System.getenv("JAVA_HOME") ?: if (osName.contains("linux")) "/usr/lib/jvm/java-17-openjdk" else null)?.let {
+            javaHome = it
+        }
 
         jvmArgs += listOf(
             "-Dcompose.application.dev.mode=false",
-            "-Djdk.gtk.version=3",
             "-Dcompose.interop.blending=true",
             "-Dcompose.swing.interop.expose.native.window=true",
             "-Dskiko.renderApi=SOFTWARE", 
             "--add-opens", "java.desktop/sun.awt=ALL-UNNAMED",
             "--add-opens", "java.desktop/java.awt.event=ALL-UNNAMED",
-            "--add-opens", "java.desktop/sun.awt.X11=ALL-UNNAMED",
             "--add-opens", "java.desktop/sun.swing=ALL-UNNAMED",
             "--add-exports", "java.desktop/jdk.swing.interop=ALL-UNNAMED",
             "--add-exports", "jdk.unsupported.desktop/jdk.swing.interop=ALL-UNNAMED"
         )
+
+        if (osName.contains("linux")) {
+            jvmArgs += listOf(
+                "-Djdk.gtk.version=3",
+                "--add-opens", "java.desktop/sun.awt.X11=ALL-UNNAMED"
+            )
+        }
         nativeDistributions {
             // Include all required modules for networking, SSL, and WebView
             modules("java.desktop", "java.net.http", "jdk.httpserver", "jdk.crypto.ec", "jdk.unsupported", "java.sql", "java.xml", "java.naming", "java.management", "java.instrument", "jdk.jsobject", "java.scripting", "jdk.unsupported.desktop")
