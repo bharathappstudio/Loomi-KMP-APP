@@ -18,6 +18,9 @@ jobs:
           java-version: '17'
           distribution: 'zulu'
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Build EXE
         run: ./gradlew :desktop:packageExe
         env:
