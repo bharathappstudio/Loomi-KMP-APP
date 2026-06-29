@@ -335,7 +335,7 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
     var isSearchVisible by remember { mutableStateOf(false) }
     var isStoriesVisible by remember { mutableStateOf(false) }
     var isOffline by remember { mutableStateOf(false) }
-    var isTrulyOffline by remember { mutableStateOf(false) }
+    var animatingUserUid by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
 
@@ -388,20 +388,13 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
     }
 
     val blurProgress by animateFloatAsState(
-        targetValue = if (selectedStoryForSheet != null || isTrulyOffline || longPressedUser != null) 1f else 0f,
+        targetValue = if (selectedStoryForSheet != null || longPressedUser != null) 1f else 0f,
         animationSpec = tween(200),
         label = "sheet_blur"
     )
 
     LaunchedEffect(isOffline) {
-        if (isOffline) {
-            delay(5000)
-            if (isOffline) {
-                isTrulyOffline = true
-            }
-        } else {
-            isTrulyOffline = false
-        }
+        // Offline logic removed
     }
 
     val currentUser = FirebaseAuth.getInstance().currentUser
@@ -961,17 +954,20 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
                             }
 
                             items(items = filteredUsersList.value, key = { it.uid }) { user ->
-                                SnapChatItem(user, onClick = {
-                                    val intent =
-                                        Intent(context, MessageActivity::class.java).apply {
-                                            putExtra("receiverUid", user.uid)
-                                            putExtra("receiverName", user.name)
-                                            putExtra("receiverImage", user.imageName)
-                                        }
-                                    context.startActivity(intent)
-                                }, onLongClick = {
-                                    longPressedUser = user
-                                })
+                                SnapChatItem(
+                                    user = user,
+                                    isAnimating = animatingUserUid == user.uid,
+                                    onClick = {
+                                        val intent =
+                                            Intent(context, MessageActivity::class.java).apply {
+                                                putExtra("receiverUid", user.uid)
+                                                putExtra("receiverName", user.name)
+                                                putExtra("receiverImage", user.imageName)
+                                            }
+                                        context.startActivity(intent)
+                                    }, onLongClick = {
+                                        longPressedUser = user
+                                    })
                             }
                         }
                         Box(
@@ -1022,26 +1018,6 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
                 )
             }
 
-            if (isTrulyOffline) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Transparent)
-                        .clickable(enabled = true, onClick = {}), // Block all clicks
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Image(
-                            painter = painterResource(id = R.drawable._404),
-                            contentDescription = "No Internet",
-                            modifier = Modifier.fillMaxWidth(0.7f),
-                            contentScale = ContentScale.Fit
-                        )
-                        Spacer(modifier = Modifier.height(20.dp))
-                    }
-                }
-            }
-
             if (longPressedUser != null) {
                 UserActionOverlay(
                     user = longPressedUser!!,
@@ -1053,6 +1029,13 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
                         }
                         pinnedUids = newPinned
                         pinnedPrefs.edit().putStringSet("uids", newPinned).apply()
+                    },
+                    onBlock = { user ->
+                        scope.launch {
+                            animatingUserUid = user.uid
+                            delay(1000)
+                            animatingUserUid = null
+                        }
                     },
                     onDismiss = { longPressedUser = null }
                 )
@@ -1226,9 +1209,35 @@ fun StoryBottomSheet(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun SnapChatItem(user: SnapUser, onClick: () -> Unit, onLongClick: () -> Unit) {
+fun SnapChatItem(user: SnapUser, onClick: () -> Unit, onLongClick: () -> Unit, isAnimating: Boolean = false) {
     val isDark = isSystemInDarkTheme()
-    Row(modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick).drawBehind {
+    
+    val scale = remember { Animatable(1f) }
+    val rotation = remember { Animatable(0f) }
+
+    LaunchedEffect(isAnimating) {
+        if (isAnimating) {
+            launch {
+                scale.animateTo(0.85f, spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessLow))
+                scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium))
+            }
+            launch {
+                rotation.animateTo(3f, spring(dampingRatio = Spring.DampingRatioHighBouncy))
+                rotation.animateTo(-3f, spring(dampingRatio = Spring.DampingRatioHighBouncy))
+                rotation.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+            }
+        }
+    }
+
+    Row(modifier = Modifier
+        .fillMaxWidth()
+        .graphicsLayer {
+            scaleX = scale.value
+            scaleY = scale.value
+            rotationZ = rotation.value
+        }
+        .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+        .drawBehind {
         val strokeWidth = 1.dp.toPx()
         val y = size.height - strokeWidth / 2
         drawLine(color = if (isDark) Color.White.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.1f), start = Offset(0f, y), end = Offset(size.width, y), strokeWidth = strokeWidth)
@@ -1323,6 +1332,7 @@ fun FloatingBottomNavBar(
 fun UserActionOverlay(
     user: SnapUser,
     onPinToggle: (SnapUser) -> Unit,
+    onBlock: (SnapUser) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val isDark = isSystemInDarkTheme()
@@ -1374,7 +1384,7 @@ fun UserActionOverlay(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onDismiss() }
+                    .clickable { onBlock(user); onDismiss() }
                     .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
