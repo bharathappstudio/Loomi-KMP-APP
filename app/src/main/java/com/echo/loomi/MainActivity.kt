@@ -34,6 +34,7 @@ import androidx.compose.material3.pulltorefresh.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.core.content.edit
+import android.widget.Toast
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.database.DataSnapshot
@@ -82,6 +83,8 @@ import org.json.JSONObject
 import java.net.URL
 import java.net.HttpURLConnection
 import android.util.Log
+import android.os.Environment
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
@@ -102,6 +105,18 @@ class MainActivity : ComponentActivity() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
+        }
+
+        // --- AUTO-CLEANUP APK CACHE ---
+        try {
+            val apkFile = File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "update.apk")
+            if (apkFile.exists()) {
+                apkFile.delete()
+                Log.d("Loomi_Cleanup", "Leftover update APK deleted from storage")
+                Toast.makeText(this, "Old Update Removed", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e("Loomi_Cleanup", "Failed to clear APK cache", e)
         }
 
         setContent {

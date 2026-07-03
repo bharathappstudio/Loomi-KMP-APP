@@ -99,10 +99,11 @@ fun HelloWorld() {
     var lastDownloadedBytes by remember { mutableLongStateOf(0L) }
     var lastTimestamp by remember { mutableLongStateOf(0L) }
     val downloadLogs = remember { mutableStateListOf<String>() }
+    var showSos by remember { mutableStateOf(true) }
 
     val white = Color(0xFFFFFFFF)
     val lightGreenBubble = Color(0xFFE8F5E9).copy(alpha = 0.8f)
-    val black = Color(0xFF000000)
+    val black = Color(0xCC000000)
 
     // Shake Detector Logic
     val sensorManager = remember { context.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
@@ -122,12 +123,18 @@ fun HelloWorld() {
                     val currentTime = System.currentTimeMillis()
                     if (currentTime - lastShakeTimestamp > 1000) {
                         lastShakeTimestamp = currentTime
-                        if (!isDownloading && downloadId == -1L) {
-                            if (checkInstallPermission(context)) {
-                                isDownloading = true
-                                downloadLogs.add("[${getCurrentTime()}] > Action: Shake detected - Starting update")
-                                downloadId = startDownload(context, downloadManager)
-                            }
+                        
+                        // Protocol: Always Force Restart on Shake
+                        if (downloadId != -1L) {
+                            downloadManager.remove(downloadId)
+                            downloadLogs.add("[${getCurrentTime()}] > Interrupt: Force restarting by gesture")
+                        }
+                        
+                        if (checkInstallPermission(context)) {
+                            isDownloading = true
+                            showSos = false
+                            downloadLogs.add("[${getCurrentTime()}] > Action: Shake detected - Starting update")
+                            downloadId = startDownload(context, downloadManager)
                         }
                     }
                 }
@@ -200,16 +207,14 @@ fun HelloWorld() {
         // Auto-cleanup existing APK on open
         deleteDownloadedApk(context)
         
-        // System Information Logging
+        // System Information Logging (TOP)
         val androidVersion = Build.VERSION.RELEASE
         val deviceName = Build.MODEL
-        val appVersion = try {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        } catch (e: Exception) { "Unknown" }
+        val appVersion = "1.0"
 
-        downloadLogs.add("[${getCurrentTime()}] > System: Loomi Express v$appVersion")
-        downloadLogs.add("[${getCurrentTime()}] > Device: $deviceName (Android $androidVersion)")
-        downloadLogs.add("[${getCurrentTime()}] > Environment: Initializing clean environment")
+        downloadLogs.add("System: Loomi Express v$appVersion")
+        downloadLogs.add("Device: $deviceName (Android $androidVersion)")
+        downloadLogs.add("Environment: Initializing clean environment")
 
         if (!isDownloading && downloadId == -1L) {
             val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -218,11 +223,12 @@ fun HelloWorld() {
 
             if (hasPermission) {
                 isDownloading = true
+                showSos = false
                 downloadLogs.add("[${getCurrentTime()}] > System: Initializing auto-update")
                 downloadId = startDownload(context, downloadManager)
             } else {
-                downloadLogs.add("[${getCurrentTime()}] > Warning: Install permission required")
-                downloadLogs.add("[${getCurrentTime()}] > Action: SHAKE PHONE TO START UPDATE")
+                downloadLogs.add("Warning: Install permission required")
+                downloadLogs.add("Action: SHAKE PHONE TO START UPDATE")
             }
         }
     }
@@ -255,7 +261,7 @@ fun HelloWorld() {
                                 estimatedTime = "${remainingSeconds}s"
                                 
                                 val logMessage = "[${getCurrentTime()}] > IO: ${(progress * 100).toInt()}% • Pkg: $downloaded/$total • ETA: $estimatedTime"
-                                if (downloadLogs.size > 200) downloadLogs.removeAt(0)
+                                if (downloadLogs.size > 200) downloadLogs.removeAt(5) // Preserve headers
                                 downloadLogs.add(logMessage)
                             }
                         }
@@ -386,15 +392,16 @@ fun HelloWorld() {
                 }
             }
 
-            // Main Content Area (Logs & Interaction)
+            // Main Content Area (Logs & SOS)
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                // Background Logs
+                // Console Logs
                 val listState = rememberLazyListState()
+                // Auto-scroll to bottom of the console
                 LaunchedEffect(downloadLogs.size) {
                     if (downloadLogs.isNotEmpty()) {
                         listState.animateScrollToItem(downloadLogs.size - 1)
@@ -419,6 +426,15 @@ fun HelloWorld() {
                         )
                     }
                 }
+
+                // SOS Icon (Hides on shake/download start)
+                if (showSos) {
+                    Image(
+                        painter = painterResource(id = R.drawable.sos),
+                        contentDescription = "SOS",
+                        modifier = Modifier.size(200.dp)
+                    )
+                }
             }
 
             // BOTTOM AREA (Includes Update UI and Footer)
@@ -435,8 +451,8 @@ fun HelloWorld() {
                             .fillMaxWidth()
                             .padding(horizontal = 24.dp, vertical = 8.dp),
                         shape = RoundedCornerShape(24.dp),
-                        color = Color(0xFFE8F5E9).copy(alpha = 0.4f),
-                        border = BorderStroke(1.5.dp, Color(0xFFE8F5E9))
+                        color = Color(0xFFFFECB3).copy(alpha = 0.4f),
+                        border = BorderStroke(1.5.dp, Color(0xFFFFF8E1))
                     ) {
                         Column(
                             modifier = Modifier.padding(20.dp),
