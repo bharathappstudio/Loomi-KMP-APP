@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Build
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -359,6 +360,15 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
 
     val scope = rememberCoroutineScope()
     var isRefreshing by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = isSearchVisible || isStoriesVisible || selectedStoryForSheet != null || longPressedUser != null) {
+        when {
+            longPressedUser != null -> longPressedUser = null
+            selectedStoryForSheet != null -> selectedStoryForSheet = null
+            isSearchVisible -> isSearchVisible = false
+            isStoriesVisible -> isStoriesVisible = false
+        }
+    }
 
     LaunchedEffect(isKeyboardVisible) {
         if (isKeyboardVisible) {
@@ -1150,7 +1160,7 @@ fun StoryBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 60.dp, start = 24.dp, end = 24.dp),
+                .padding(bottom = 20.dp, start = 24.dp, end = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(modifier = Modifier.size(240.dp), contentAlignment = Alignment.Center) {
@@ -1171,53 +1181,60 @@ fun StoryBottomSheet(
                     }
                 }
 
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = 10.dp, y = 10.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .border(1.5.dp, Color.White, RoundedCornerShape(20.dp))
-                        .background(Color(0xFFFFE0B2))
-                        .padding(horizontal = 30.dp, vertical = 15.dp),
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = {
-                        startCall(story.uid, story.userName, story.userProfileImage)
-                        val intent = Intent(context, CallActivity::class.java).apply {
-                            putExtra("receiverUid", story.uid)
-                            putExtra("receiverName", story.userName)
-                            putExtra("receiverImage", story.userProfileImage)
-                            putExtra("isIncoming", false)
-                        }
-                        context.startActivity(intent)
-                    }, modifier = Modifier.size(24.dp)) {
-                        Icon(painterResource(R.drawable.call), null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                    }
-                    Icon(painterResource(R.drawable.video), null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                }
-
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .offset(x = (0.dp), y = (-10.dp))
-                        .size(60.dp)
+                        .size(70.dp)
                         .clip(RoundedCornerShape(15.dp))
                         .border(2.dp, Color.White, RoundedCornerShape(15.dp))
-                        .background(Color(0xFFFFAB91))
-                        .padding(12.dp),
+                        .background(Color.Gray.copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(painterResource(R.drawable.musicnote), null, tint = Color.White, modifier = Modifier.size(30.dp))
+                    if (songArtworkUrl != null) {
+                        AsyncImage(
+                            model = songArtworkUrl,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Icon(
+                            painter = painterResource(R.drawable.musicnote),
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(25.dp))
             Text(
-                text = "Uploaded $timeAgo",
-                fontSize = 13.sp,
-                color = Color.Black.copy(alpha = 0.7f)
+                text = "${story.userName}, $timeAgo",
+                fontSize = 14.sp,
+                color = Color.Black.copy(0.60f),
+                fontWeight = FontWeight.Medium
             )
+            
+            if (story.songName.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        painter = painterResource(R.drawable.musicnote),
+                        contentDescription = null,
+                        tint = Color.Black.copy(0.7f),
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = story.songName,
+                        fontSize = 12.sp,
+                        color = Color.Black.copy(0.7f),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
         }
     }
 }
