@@ -251,7 +251,7 @@ fun SettingUI(onLogout: () -> Unit) {
                 .clip(RoundedCornerShape(20.dp))
                 .border(2.dp, if (isDark) Color.White.copy(0.1f) else Color.White, RoundedCornerShape(20.dp))
                 .background(if (isDark) Color(0xFF1B1F1C) else Color(0xFFE8F5E9))
-                // .clickable { context.startActivity(Intent(context, EchoWeb::class.java)) }
+                .clickable { context.startActivity(Intent(context, PaymentActivity::class.java)) }
         ) {
             val bubbleColor = if (isDark) Color.White.copy(0.05f) else Color(0xFFFFFFFF).copy(alpha = 0.75f)
             Box(Modifier.size(22.dp).offset(30.dp + side1.dp, up1.dp).background(bubbleColor, CircleShape))

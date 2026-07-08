@@ -24,6 +24,13 @@
     <uses-permission android:name="android.permission.DETECT_SCREEN_CAPTURE" />
     <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
 
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="upi" />
+        </intent>
+    </queries>
+
     <application
         android:name=".LoomiApplication"
         android:allowBackup="true"
@@ -70,6 +77,14 @@
             android:name=".EchoActivity"
             android:exported="false"
             android:theme="@style/Theme.Loomi" />
+        <activity
+            android:name=".PaymentActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Loomi.Transparent" />
+
+        <meta-data
+            android:name="com.google.android.gms.wallet.api.enabled"
+            android:value="true" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
