@@ -76,6 +76,7 @@ class PaymentActivity : ComponentActivity() {
         setContent {
             LoomiTheme {
                 var showSheet by remember { mutableStateOf(true) }
+                val isDark = isSystemInDarkTheme()
                 
                 LaunchedEffect(showSheet) {
                     if (!showSheet) finish()
@@ -90,27 +91,69 @@ class PaymentActivity : ComponentActivity() {
                     )
                     
                     if (showSheet) {
-                        ModalBottomSheet(
-                            onDismissRequest = { showSheet = false },
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            shape = RoundedCornerShape(topStart = 34.dp, topEnd = 34.dp),
-                            dragHandle = {
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Spacer(modifier = Modifier.weight(1f))
+                            
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(topStart = 34.dp, topEnd = 34.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .navigationBarsPadding()
+                                    .padding(horizontal = 24.dp, vertical = 26.dp)
+                            ) {
                                 Box(
                                     modifier = Modifier
-                                        .padding(top = 16.dp)
+                                        .align(Alignment.CenterHorizontally)
                                         .width(40.dp)
                                         .height(5.dp)
                                         .clip(RoundedCornerShape(100))
-                                        .background(if (isSystemInDarkTheme()) Color.White.copy(0.2f) else Color(0xFF2A2A2A))
+                                        .background(if (isDark) Color.White.copy(0.2f) else Color(0xFF2A2A2A))
                                 )
-                            },
-                            scrimColor = Color.Transparent
-                        ) {
-                            PaymentSheetContent(
-                                amount = amount,
-                                onPayClick = { requestPayment() },
-                                onCancel = { showSheet = false }
-                            )
+
+                                Spacer(modifier = Modifier.height(22.dp))
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(56.dp)
+                                        .clip(RoundedCornerShape(30.dp))
+                                        .background(if (isDark) Color.White else Color(0xFF1C1C1C))
+                                        .clickable { requestPayment() },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Image(
+                                            painter = painterResource(id = R.drawable.google),
+                                            contentDescription = "Google",
+                                            modifier = Modifier.size(30.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            text = "Pay with Google Pay",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = if (isDark) Color.Black else Color.White
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(22.dp))
+
+                                Text(
+                                    text = "Secure payment via Google Pay API",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF6E6E6E),
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     }
                 }
@@ -121,10 +164,6 @@ class PaymentActivity : ComponentActivity() {
     private fun requestPayment() {
         val paymentDataRequestJson = getPaymentDataRequest()
         val request = PaymentDataRequest.fromJson(paymentDataRequestJson.toString())
-        
-        // Use ENVIRONMENT_PRODUCTION for real payments. 
-        // Note: OR_BIBED_11 often happens if the app is not signed with the production 
-        // certificate registered in the Google Pay Business Console.
         val task = paymentsClient.loadPaymentData(request)
         AutoResolveHelper.resolveTask(task, this, 9001)
     }
@@ -142,7 +181,7 @@ class PaymentActivity : ComponentActivity() {
             )
             .put("merchantInfo", JSONObject()
                 .put("merchantId", merchantId)
-                .put("merchantName", "Loomi") // Ensure this matches your registered name
+                .put("merchantName", "Loomi")
             )
     }
 
@@ -152,7 +191,7 @@ class PaymentActivity : ComponentActivity() {
             .put("parameters", JSONObject()
                 .put("payeeVpa", upiId)
                 .put("payeeName", name)
-                .put("mcc", "5817") // MCC for Digital Goods: Software Applications
+                .put("mcc", "5817")
                 .put("transactionReferenceId", UUID.randomUUID().toString())
                 .put("transactionNote", "Loomi Pro Subscription")
             )
@@ -165,7 +204,6 @@ class PaymentActivity : ComponentActivity() {
         val paymentInformation = paymentData?.toJson() ?: return
         try {
             val paymentMethodData = JSONObject(paymentInformation).getJSONObject("paymentMethodData")
-            // For UPI, the response might contain specific transaction details
             savePaymentToFirebase(paymentMethodData.toString())
             Toast.makeText(this, "Payment Successful!", Toast.LENGTH_LONG).show()
             finish()
@@ -192,86 +230,5 @@ class PaymentActivity : ComponentActivity() {
 
         database.child("payments").child(uid).child(paymentId).setValue(paymentData)
         database.child("users").child(uid).child("isPro").setValue(true)
-    }
-}
-
-// Reuse the PaymentSheetContent from previous implementation
-@Composable
-fun PaymentSheetContent(amount: String, onPayClick: () -> Unit, onCancel: () -> Unit) {
-    val isDark = isSystemInDarkTheme()
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 26.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            "Upgrade to Loomi Pro 🫐",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Text(
-            "Get access to higher limits, cloud storage, and E2E encryption in Realtime Database.",
-            fontSize = 14.sp,
-            color = if (isDark) Color.White.copy(0.6f) else Color(0xFF6B6B6B),
-            textAlign = TextAlign.Center
-        )
-        
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(if (isDark) Color.White.copy(0.05f) else Color(0xFFF9FBE7))
-                .border(1.dp, if (isDark) Color.White.copy(0.1f) else Color.Transparent, RoundedCornerShape(20.dp))
-                .padding(24.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Total Amount", fontSize = 14.sp, color = if (isDark) Color.White.copy(0.4f) else Color.Gray)
-                Text("₹$amount", fontSize = 42.sp, fontWeight = FontWeight.ExtraBold, color = if (isDark) Color.White else Color(0xFF1C1C1C))
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .clip(RoundedCornerShape(30.dp))
-                .background(if (isDark) Color.White else Color(0xFF1C1C1C))
-                .clickable { onPayClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Pay with Google Pay",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (isDark) Color.Black else Color.White
-            )
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        TextButton(onClick = onCancel) {
-            Text("Cancel", color = if (isDark) Color.White.copy(0.6f) else Color.Gray)
-        }
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        Text(
-            text = "Secure payment via Google Pay API",
-            fontSize = 12.sp,
-            color = Color(0xFF6E6E6E),
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
     }
 }
