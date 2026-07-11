@@ -1317,11 +1317,17 @@ fun SnapChatItem(user: SnapUser, onClick: () -> Unit, onLongClick: () -> Unit, i
                     else EncryptionUtils.decrypt(user.lastMessage)
                 }
                 val isOnline = user.status == "Online" && (System.currentTimeMillis() - user.lastSeen < 60000)
-                val statusText = if (displayMsg.isNotEmpty()) displayMsg else if (isOnline) "Online" else formatLastSeen(user.lastSeen)
-                Text(text = "➤ ", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), fontSize = 11.sp, modifier = Modifier.padding(end = 4.dp))
+                val statusText = if (displayMsg.isNotEmpty()) displayMsg else "Say hi"
+                Text(text = "➤", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), fontSize = 11.sp, modifier = Modifier.padding(end = 4.dp))
                 Text(text = statusText, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), fontSize = 13.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
         }
+        Icon(
+            painter = painterResource(id = R.drawable.heart),
+            contentDescription = null,
+            modifier = Modifier.size(28.dp).padding(end = 4.dp),
+            tint = if (user.isPinned) Color.Red else (if (isDark) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.4f))
+        )
     }
 }
 
