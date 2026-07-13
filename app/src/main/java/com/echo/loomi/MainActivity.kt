@@ -260,6 +260,7 @@ class MainActivity : ComponentActivity() {
 data class SnapUser(
     val uid: String,
     val name: String,
+    val email: String = "",
     val status: String = "Offline",
     val lastSeen: Long = 0,
     val lastMessage: String = "",
@@ -520,10 +521,11 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
                     val otherUid = userSnapshot.child("uid").getValue(String::class.java) ?: ""
                     if (otherUid != uid) {
                         val name = userSnapshot.child("name").getValue(String::class.java) ?: "Unknown"
+                        val email = userSnapshot.child("email").getValue(String::class.java) ?: ""
                         val imageName = userSnapshot.child("imageName").getValue(String::class.java) ?: ""
                         val status = userSnapshot.child("status").getValue(String::class.java) ?: "Offline"
                         val lastSeen = userSnapshot.child("lastSeen").getValue(Long::class.java) ?: 0L
-                        val user = SnapUser(otherUid, name, status, lastSeen, imageName = imageName)
+                        val user = SnapUser(otherUid, name, email, status, lastSeen, imageName = imageName)
                         usersList.add(user)
 
                         val chatId = if (uid < otherUid) "${uid}_$otherUid" else "${otherUid}_$uid"
@@ -1374,9 +1376,10 @@ fun UserActionOverlay(
     onDismiss: () -> Unit
 ) {
     val isDark = isSystemInDarkTheme()
-    val bgColor = if (isDark) Color(0xFF2C2C2C).copy(alpha = 0.95f) else Color(0xFFFFF8E1).copy(alpha = 0.95f)
+    // Glass style for dark mode, normal style for light mode
+    val bgColor = if (isDark) Color.Black.copy(alpha = 0.6f) else Color(0xFFFFF8E1).copy(alpha = 0.95f)
     val textColor = if (isDark) Color.White else Color.Black
-    val dividerColor = if (isDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.1f)
+    val dividerColor = if (isDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f)
     val borderColor = if (isDark) Color.White.copy(alpha = 0.2f) else Color.White
 
     Box(
@@ -1390,8 +1393,8 @@ fun UserActionOverlay(
             modifier = Modifier
                 .width(280.dp)
                 .clip(RoundedCornerShape(25.dp))
-                .border(1.dp, borderColor, RoundedCornerShape(25.dp))
                 .background(bgColor)
+                .border(1.dp, borderColor, RoundedCornerShape(25.dp))
                 .clickable(enabled = false) { } // Prevent dismiss when clicking the card
                 .padding(vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -1426,7 +1429,7 @@ fun UserActionOverlay(
                     .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Block", color = Color.Red, fontSize = 16.sp)
+                Text("Block", color = textColor, fontSize = 16.sp)
             }
             
             HorizontalDivider(thickness = 1.dp, color = dividerColor)
@@ -1438,7 +1441,7 @@ fun UserActionOverlay(
                     .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Report", color = Color.Red, fontSize = 16.sp)
+                Text("Report", color = textColor, fontSize = 16.sp)
             }
 
             if (user.isPinned) {
@@ -1450,7 +1453,7 @@ fun UserActionOverlay(
                         .padding(16.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Unpin", color = Color.Red, fontSize = 16.sp)
+                    Text("Unpin", color = textColor, fontSize = 16.sp)
                 }
             }
         }

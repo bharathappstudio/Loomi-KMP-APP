@@ -86,7 +86,7 @@ object NotificationHelper {
 
     fun showSecurityNotification(context: Context, body: String) {
         val notification = NotificationCompat.Builder(context, SECURITY_CHANNEL_ID)
-            .setSmallIcon(R.drawable.logo)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("") // Empty title
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -135,7 +135,7 @@ object NotificationHelper {
 
     fun getServiceNotification(context: Context): android.app.Notification {
         val builder = NotificationCompat.Builder(context, SERVICE_CHANNEL_ID)
-            .setSmallIcon(R.drawable.logo)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setSilent(true)
@@ -219,7 +219,7 @@ object NotificationHelper {
                 .setGroupConversation(false)
 
             val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(R.drawable.logo)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setStyle(messagingStyle)
                 .setAutoCancel(true)
                 .setPriority(NotificationCompat.PRIORITY_MAX)
