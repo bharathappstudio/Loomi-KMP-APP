@@ -54,6 +54,13 @@ import android.content.Intent
 import android.app.Activity
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.StickyNote2
+import androidx.compose.material.icons.outlined.AddCircleOutline
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 
 class MessageActivity : ComponentActivity() {
     private lateinit var sosManager: SOSManager
@@ -146,28 +153,67 @@ class MessageActivity : ComponentActivity() {
         setContent {
             LoomiTheme {
                 val sosActive = showSOSOverlay.value
+                val selectedImage = remember { mutableStateOf<String?>(null) }
+                
+                // Block screenshots when viewing high-quality image
+                LaunchedEffect(selectedImage.value) {
+                    if (selectedImage.value != null) {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                    }
+                }
+
                 val blurValue by animateDpAsState(
-                    targetValue = if (sosActive) 30.dp else 0.dp,
+                    targetValue = if (sosActive) 30.dp else if (selectedImage.value != null) 15.dp else 0.dp,
                     animationSpec = tween(500),
                     label = "sos_blur"
                 )
 
-                Box(modifier = Modifier.fillMaxSize().blur(blurValue)) {
-                    MessageScreen(
-                        receiverUid = receiverUid,
-                        receiverName = receiverName,
-                        receiverImage = receiverImage,
-                        onBack = { finish() }
-                    )
-                }
-                
-                if (sosActive) {
-                    SOSOverlay(
-                        onTimeout = {
-                            sosManager.uploadSOSData()
-                            showSOSOverlay.value = false
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Box(modifier = Modifier.fillMaxSize().blur(blurValue)) {
+                        MessageScreen(
+                            receiverUid = receiverUid,
+                            receiverName = receiverName,
+                            receiverImage = receiverImage,
+                            onBack = { finish() },
+                            onImageClick = { base64 -> selectedImage.value = base64 }
+                        )
+                    }
+                    
+                    if (sosActive) {
+                        SOSOverlay(
+                            onTimeout = {
+                                sosManager.uploadSOSData()
+                                showSOSOverlay.value = false
+                            }
+                        )
+                    }
+
+                    // Full Screen HD Image Viewer
+                    selectedImage.value?.let { base64 ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.5f))
+                                .clickable { selectedImage.value = null },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val imageBytes = Base64.decode(base64, Base64.DEFAULT)
+                            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                            if (bitmap != null) {
+                                Image(
+                                    bitmap = bitmap.asImageBitmap(),
+                                    contentDescription = "Full Screen Image",
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.8f)
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .border(2.dp, Color.White.copy(alpha = 9f), RoundedCornerShape(20.dp)),
+                                    contentScale = ContentScale.Fit
+                                )
+                            }
                         }
-                    )
+                    }
                 }
             }
         }
@@ -194,7 +240,8 @@ fun MessageScreen(
     receiverUid: String,
     receiverName: String,
     receiverImage: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onImageClick: (String) -> Unit
 ) {
     val isDark = isSystemInDarkTheme()
     val auth = FirebaseAuth.getInstance()
@@ -204,6 +251,7 @@ fun MessageScreen(
     val chatId = if (currentUid < receiverUid) "${currentUid}_$receiverUid" else "${receiverUid}_$currentUid"
     val messagesList = remember { mutableStateListOf<ChatMessage>() }
     var receiverStatus by remember { mutableStateOf("Offline") }
+    var isReceiverTyping by remember { mutableStateOf(false) }
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
@@ -226,6 +274,29 @@ fun MessageScreen(
         onDispose { statusRef.removeEventListener(listener) }
     }
 
+    DisposableEffect(receiverUid) {
+        val typingRef = database.child("users").child(receiverUid).child("typingWith")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val typingWith = snapshot.getValue(String::class.java)
+                isReceiverTyping = typingWith == currentUid
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        }
+        typingRef.addValueEventListener(listener)
+        onDispose { typingRef.removeEventListener(listener) }
+    }
+
+    LaunchedEffect(input) {
+        if (input.isNotEmpty()) {
+            database.child("users").child(currentUid).child("typingWith").setValue(receiverUid)
+            delay(3000)
+            database.child("users").child(currentUid).child("typingWith").removeValue()
+        } else {
+            database.child("users").child(currentUid).child("typingWith").removeValue()
+        }
+    }
+
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
@@ -246,11 +317,28 @@ fun MessageScreen(
         }
     }
 
-    // Transform state
-    var isReady by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        delay(3000)
-        isReady = true
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            val inputStream = context.contentResolver.openInputStream(it)
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            if (bitmap != null) {
+                val outputStream = ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
+                val base64Image = Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
+                
+                val msgId = database.child("chats").child(chatId).push().key ?: ""
+                val message = ChatMessage(
+                    id = msgId,
+                    senderId = currentUid,
+                    receiverId = receiverUid,
+                    message = "img:$base64Image",
+                    timestamp = System.currentTimeMillis()
+                )
+                database.child("chats").child(chatId).child(msgId).setValue(message)
+            }
+        }
     }
 
     // Listen for chat messages
@@ -350,12 +438,12 @@ fun MessageScreen(
         Column(modifier = Modifier
             .fillMaxSize()
             .imePadding()
-            .navigationBarsPadding()
             .blur(lerpDp(0.dp, 25.dp, blurProgress))
         ) {
             MessageTopBar(
                 receiverName = receiverName,
                 receiverImage = receiverImage,
+                isTyping = isReceiverTyping,
                 onBack = onBack,
                 onCallClick = {
                     startCall(receiverUid, receiverName, receiverImage)
@@ -380,7 +468,7 @@ fun MessageScreen(
                     ) {
                         items(messagesList, key = { it.id }) { msg ->
                             val isMe = msg.senderId == currentUid
-                            ChatBubble(msg, isMe)
+                            ChatBubble(msg, isMe, onImageClick)
                         }
                     }
                 }
@@ -425,9 +513,10 @@ fun MessageScreen(
                 onCameraClick = {
                     cameraLauncher.launch(null)
                 },
-                isExpanded = isReady,
-                onExpandedChange = { isReady = it },
-                modifier = Modifier.padding(bottom = 20.dp)//floting nave bar hight
+                onGalleryClick = {
+                    galleryLauncher.launch("image/*")
+                },
+                modifier = Modifier.navigationBarsPadding().padding(bottom = 8.dp)
             )
         }
 
@@ -474,6 +563,7 @@ fun MessageScreen(
 fun MessageTopBar(
     receiverName: String,
     receiverImage: String,
+    isTyping: Boolean = false,
     onBack: () -> Unit,
     onCallClick: () -> Unit
 ) {
@@ -546,6 +636,14 @@ fun MessageTopBar(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                         letterSpacing = 0.5.sp
                     )
+                    if (isTyping) {
+                        Text(
+                            text = "typing...",
+                            fontSize = 12.sp,
+                            color = Color(0xFF5856D6),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -585,162 +683,108 @@ fun FloatingBottomNavBar(
     onTextChange: (String) -> Unit,
     onSend: () -> Unit,
     onCameraClick: () -> Unit,
-    isExpanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
+    onGalleryClick: () -> Unit,
     onSearchClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val focusRequester = remember { FocusRequester() }
-
-    val animProgress by animateFloatAsState(
-        targetValue = if (isExpanded) 1f else 0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "nav_morph"
-    )
-
-    val horizontalPadding = lerpDp(80.dp, 10.dp, animProgress)
-    val barHeight = lerpDp(50.dp, 60.dp, animProgress)
     val isDark = isSystemInDarkTheme()
-    val bgColor = if (isDark) {
-        androidx.compose.ui.graphics.lerp(Color(0xFF1A1A1A), Color(0xFF121212).copy(0.7f), animProgress)
-    } else {
-        androidx.compose.ui.graphics.lerp(Color(0xFFFFF2D9), Color.White.copy(0.55f), animProgress)
-    }
-    val borderAlpha = androidx.compose.ui.util.lerp(0.8f, 0.3f, animProgress)
+    val bgColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFFFFBF6)
 
     Box(
         modifier = modifier
-            .padding(horizontal = horizontalPadding)
-            .height(barHeight)
-            .clip(RoundedCornerShape(30.dp))
+            .padding(horizontal = 12.dp)
+            .height(56.dp)
+            .clip(RoundedCornerShape(28.dp))
             .background(bgColor)
             .border(
-                width = 2.dp,
-                color = Color(0xFFFFF2D9).copy(alpha = if (isExpanded) 3f else 0.3f),
-                shape = RoundedCornerShape(30.dp)
+                width = 1.dp,
+                color = if (isDark) Color.White.copy(0.1f) else Color.Black.copy(0.05f),
+                shape = RoundedCornerShape(28.dp)
             )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.Center,
+                .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val iconColor = if (isDark) Color.White else Color.Black
-            if (animProgress < 0.5f) {
-                // Icons Mode
-                IconButton(
-                    onClick = onCameraClick,
-                    modifier = Modifier.size(36.dp).graphicsLayer(alpha = 1f - animProgress * 2)
-                ) {
-                    Icon(painterResource(R.drawable.camera), null, tint = iconColor, modifier = Modifier.size(20.dp))
-                }
-                
-                Spacer(modifier = Modifier.width(20.dp))
+            // Camera Button (Circular Blue)
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF66BB6A))
+                    .clickable { onCameraClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.camera),
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
+                    tint = Color.White
+                )
+            }
 
-                IconButton(
-                    onClick = { onExpandedChange(true) },
-                    modifier = Modifier.size(36.dp).graphicsLayer(alpha = 1f - animProgress * 2)
-                ) {
-                    Icon(painterResource(R.drawable.keyboard_keys_25dp_1f1f1f_fill0_wght400_grad0_opsz24), null, tint = iconColor, modifier = Modifier.size(22.dp))
-                }
+            Spacer(modifier = Modifier.width(8.dp))
 
-                Spacer(modifier = Modifier.width(20.dp))
-
-                IconButton(
-                    onClick = onSearchClick,
-                    modifier = Modifier.size(36.dp).graphicsLayer(alpha = 1f - animProgress * 2)
-                ) {
-                    Icon(painterResource(R.drawable.search), null, tint = iconColor, modifier = Modifier.size(20.dp))
-                }
-            } else {
-                // Input Mode
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // 1. Logo Button - Modern Glassmorphism
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(if (isDark) Color.White.copy(0.1f) else Color.White.copy(0.35f))
-                            .clickable { onExpandedChange(false) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.arrow___down_2),
-                            contentDescription = null,
-                            modifier = Modifier.size(22.dp), // Slightly smaller for premium feel
-                            tint = if (isDark) Color.White else Color.Unspecified
-                        )
-                    }
-
-                    // 2. Smoothly animated TextField
-                    // We use AnimatedVisibility for a "gentle" entrance
-                    AnimatedVisibility(
-                        visible = animProgress > 0.5f,
-                        enter = fadeIn(animationSpec = tween(400)) + expandHorizontally(),
-                        exit = fadeOut(animationSpec = tween(300)) + shrinkHorizontally(),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        LaunchedEffect(Unit) {
-                            focusRequester.requestFocus()
-                        }
-                        TextField(
-                            value = text,
-                            onValueChange = onTextChange,
-                            modifier = Modifier.focusRequester(focusRequester),
-                            placeholder = {
-                                Text(
-                                    "Ask...",
-                                    color = Color.Black.copy(0.4f),
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                            },
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                                cursorColor = Color.Black
-                            ),
-                            singleLine = true
-                        )
-                    }
-
-                    // 3. Send Button - Color Morphing
-                    val sendButtonColor by animateColorAsState(
-                        targetValue = if (text.isNotBlank()) Color.Black else Color.Black.copy(0.15f),
-                        animationSpec = spring(stiffness = Spring.StiffnessLow),
-                        label = "color"
+            // TextField
+            TextField(
+                value = text,
+                onValueChange = onTextChange,
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focusRequester),
+                placeholder = {
+                    Text(
+                        " Message...",
+                        color = if (isDark) Color.White.copy(0.4f) else Color.Black.copy(0.4f),
+                        style = MaterialTheme.typography.bodyLarge
                     )
+                },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    cursorColor = if (isDark) Color.White else Color.Black,
+                    focusedTextColor = if (isDark) Color.White else Color.Black,
+                    unfocusedTextColor = if (isDark) Color.White else Color.Black
+                ),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { onSend() })
+            )
 
-                    IconButton(
-                        onClick = onSend,
-                        modifier = Modifier
-                            .size(46.dp)
-                            .graphicsLayer {
-                                // Gentle scale up as the bar expands
-                                val scale = lerp(0.8f, 1f, (animProgress - 0.5f).coerceAtLeast(0f) * 2)
-                                scaleX = scale
-                                scaleY = scale
-                                alpha = (animProgress - 0.5f).coerceAtLeast(0f) * 2
-                            }
-                            .clip(CircleShape)
-                            .background(sendButtonColor)
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.send),
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
+            // Right Side Icons
+            val tint = if (isDark) Color.White.copy(alpha = 0.9f) else Color.Black.copy(alpha = 0.9f)
+            
+            IconButton(onClick = onGalleryClick) {
+                Icon(
+                    painter = painterResource(R.drawable.image),
+                    contentDescription = "Gallery",
+                    tint = tint,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            if (text.isNotBlank()) {
+                Spacer(modifier = Modifier.width(4.dp))
+                // Send Button (Circular Black)
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black)
+                        .clickable { onSend() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.send),
+                        contentDescription = "Send",
+                        modifier = Modifier.size(22.dp),
+                        tint = Color.White
+                    )
                 }
             }
         }
@@ -748,8 +792,9 @@ fun FloatingBottomNavBar(
 }
 
 @Composable
-fun ChatBubble(msg: ChatMessage, isMe: Boolean) {
+fun ChatBubble(msg: ChatMessage, isMe: Boolean, onImageClick: (String) -> Unit) {
     val isDark = isSystemInDarkTheme()
+    val isImage = msg.message.startsWith("img:")
     val bubbleShape = RoundedCornerShape(
         topStart = 22.dp,
         topEnd = 22.dp,
@@ -761,14 +806,21 @@ fun ChatBubble(msg: ChatMessage, isMe: Boolean) {
         horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
     ) {
         Column(
-            modifier = Modifier
-                .widthIn(max = 300.dp)
-                .clip(bubbleShape)
-                .background(if (isMe) (if (isDark) Color.White.copy(0.2f) else Color(0x66C8E6C9)) else (if (isDark) Color.White.copy(0.1f) else Color(0x80FFECB3).copy(alpha = 0.45f)))
-                .border(1.dp, Color.White.copy(alpha = if (isDark) 0.1f else 0.80f), bubbleShape)
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+            modifier = if (isImage) {
+                Modifier
+                    .widthIn(max = 180.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable { onImageClick(msg.message.substring(4)) }
+            } else {
+                Modifier
+                    .widthIn(max = 300.dp)
+                    .clip(bubbleShape)
+                    .background(if (isMe) (if (isDark) Color.White.copy(0.2f) else Color(0x66C8E6C9)) else (if (isDark) Color.White.copy(0.1f) else Color(0x80FFECB3).copy(alpha = 0.45f)))
+                    .border(1.dp, Color.White.copy(alpha = if (isDark) 0.1f else 0.80f), bubbleShape)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            }
         ) {
-            if (msg.message.startsWith("img:")) {
+            if (isImage) {
                 val base64Data = msg.message.substring(4)
                 val imageBytes = Base64.decode(base64Data, Base64.DEFAULT)
                 val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
@@ -779,9 +831,8 @@ fun ChatBubble(msg: ChatMessage, isMe: Boolean) {
                         contentDescription = "Image message",
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 250.dp)
-                            .clip(RoundedCornerShape(12.dp)),
-                        contentScale = ContentScale.Crop
+                            .heightIn(max = 240.dp),
+                        contentScale = ContentScale.FillWidth
                     )
                 }
             } else {
