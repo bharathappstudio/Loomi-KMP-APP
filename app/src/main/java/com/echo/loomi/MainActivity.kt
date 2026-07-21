@@ -1276,9 +1276,11 @@ fun SnapChatItem(user: SnapUser, onClick: () -> Unit, onLongClick: () -> Unit, i
         val y = size.height - strokeWidth / 2
         drawLine(color = if (isDark) Color.White.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.1f), start = Offset(0f, y), end = Offset(size.width, y), strokeWidth = strokeWidth)
     }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(modifier = Modifier.size(54.dp).border(width = 2.dp, color = if (isDark) Color.White else (if (user.status == "Online") Color(
-            0xFFA5D6A7
-        ) else Color(0xFFFFD54F).copy(alpha = 0.5f)), shape = CircleShape).background(MaterialTheme.colorScheme.surface, CircleShape), contentAlignment = Alignment.Center) {
+        val statusColor = if (user.status == "Online") Color(0xFFA5D6A7)
+                         else if (isDark) Color.White.copy(alpha = 0.2f)
+                         else Color(0xFFFFD54F).copy(alpha = 0.5f)
+
+        Box(modifier = Modifier.size(54.dp).border(width = 2.dp, color = statusColor, shape = CircleShape).background(MaterialTheme.colorScheme.surface, CircleShape), contentAlignment = Alignment.Center) {
             val context = LocalContext.current
             val imageRequest = remember(user.imageName) {
                 val data: Any = if (user.imageName.startsWith("data:image")) {
@@ -1318,8 +1320,11 @@ fun SnapChatItem(user: SnapUser, onClick: () -> Unit, onLongClick: () -> Unit, i
                     if (user.lastMessage.startsWith("img:")) "Sent an image"
                     else EncryptionUtils.decrypt(user.lastMessage)
                 }
-                val isOnline = user.status == "Online" && (System.currentTimeMillis() - user.lastSeen < 60000)
-                val statusText = if (displayMsg.isNotEmpty()) displayMsg else "Say hi"
+                val statusText = when {
+                    displayMsg.isNotEmpty() -> displayMsg
+                    user.status == "Online" -> "Online"
+                    else -> "Last seen ${formatLastSeen(user.lastSeen)}"
+                }
                 Text(text = "➤", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), fontSize = 11.sp, modifier = Modifier.padding(end = 4.dp))
                 Text(text = statusText, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), fontSize = 13.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
