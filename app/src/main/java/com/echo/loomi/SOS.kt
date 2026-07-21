@@ -51,7 +51,9 @@ class SOSManager(
     private var lastShakeTime: Long = 0
 
     fun start() {
-        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME)
+        accelerometer?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
+        }
     }
 
     fun stop() {

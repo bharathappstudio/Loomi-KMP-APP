@@ -11,6 +11,10 @@ android {
     namespace = "com.echo.loomi"
     compileSdk = 36
 
+    androidResources {
+        localeFilters += "en"
+    }
+
     defaultConfig {
         applicationId = "com.echo.loomi"
         minSdk = 24
@@ -19,6 +23,11 @@ android {
         versionName = "1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        // Removed x86/x86_64 to save ~25MB. APK will only work on real ARM devices.
+        ndk {
+            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))
+        }
     }
 
     signingConfigs {
@@ -34,13 +43,29 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            
+            // Further optimization
+            ndk {
+                debugSymbolLevel = "none"
+            }
         }
     }
+    
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/META-INF/*.kotlin_module"
+            excludes += "/*.txt"
+            excludes += "/com/google/thirdparty/publicsuffix/PublicSuffixPatterns.dat"
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -63,7 +88,6 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.coil.compose)
-    implementation("io.coil-kt:coil-gif:2.7.0")
     implementation(libs.material)
     implementation(libs.play.services.auth)
     implementation(libs.play.services.location)

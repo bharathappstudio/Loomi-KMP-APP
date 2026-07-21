@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/logo,@drawable/google,@drawable/b1,@drawable/setting_4,@drawable/search,@drawable/heart,@drawable/camera,@drawable/musicnote,@drawable/share_musik,@mipmap/ic_launcher,@mipmap/ic_launcher_round" />
