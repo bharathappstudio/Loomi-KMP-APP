@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.core.content.ContextCompat
@@ -58,7 +59,7 @@ class LoginActivity : AppCompatActivity() {
         if (allGranted) {
             startGoogleSignIn()
         } else {
-            errorMessage.value = "All permissions (Location, Camera, Notifications) are required to login."
+            errorMessage.value = "All permissions required"
             isLoading.value = false
         }
     }
@@ -76,7 +77,7 @@ class LoginActivity : AppCompatActivity() {
                 checkProfileAndNavigate()
             } else {
                 isLoading.value = false
-                errorMessage.value = "Sign in failed. Please try again."
+                errorMessage.value = "Please try again."
             }
         }
 
@@ -197,12 +198,16 @@ fun BlackLoginUI(
     }
 
     val googleColors = listOf(
-        Color(0xFF7E57C2), Color(0xFFEF5350), Color(0xFFFFEE58),
-        Color(0xFF5C6BC0), Color(0xFF66BB6A)
+        Color(0xFF8AB4F8), // Medium Blue
+        Color(0xFFF28B82), // Medium Red
+        Color(0xFFFDD663), // Medium Yellow
+        Color(0xFF81C995), // Medium Green
+        Color(0xFF669DF6)  // Medium Secondary Blue
     )
 
     var colorIndex1 by remember { mutableIntStateOf(0) }
     var colorIndex2 by remember { mutableIntStateOf(1) }
+    var colorIndex3 by remember { mutableIntStateOf(2) }
 
     LaunchedEffect(loading) {
         if (loading) {
@@ -214,16 +219,10 @@ fun BlackLoginUI(
         }
     }
 
-    val animatedColor1 by animateColorAsState(
-        targetValue = googleColors[colorIndex1],
-        animationSpec = tween(durationMillis = 600),
-        label = "C1"
-    )
-    val animatedColor2 by animateColorAsState(
-        targetValue = googleColors[colorIndex2],
-        animationSpec = tween(durationMillis = 600),
-        label = "C2"
-    )
+    // Animated colors assigned to c1, c2, c3
+    val c1 by animateColorAsState(googleColors[colorIndex1], animationSpec = tween(600), label = "c1")
+    val c2 by animateColorAsState(googleColors[colorIndex2], animationSpec = tween(600), label = "c2")
+    val c3 by animateColorAsState(googleColors[colorIndex3], animationSpec = tween(600), label = "c3")
 
     val context = androidx.compose.ui.platform.LocalContext.current
     // --- Dynamic System Bars Support ---
@@ -283,12 +282,12 @@ fun BlackLoginUI(
                                     drawContent()
                                     drawRect(
                                         brush = Brush.linearGradient(
-                                            colors = listOf(animatedColor1, animatedColor2)
+                                            colors = listOf(c1, c2, c3)
                                         ),
                                         blendMode = BlendMode.SrcAtop
                                     )
                                 },
-                            color = animatedColor1
+                            color = Color.White
                         )
                     }
                 } else {
@@ -308,13 +307,13 @@ fun BlackLoginUI(
                             Image(
                                 painter = painterResource(id = R.drawable.google),
                                 contentDescription = "Google",
-                                modifier = Modifier.size(30.dp)
+                                modifier = Modifier.size(15.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "Continue with Google",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                text = "Continue with Loomi",
+                                fontSize = 15.sp,
+                                fontFamily = FontFamily.Monospace,
                                 color = if (isDark) Color.Black else Color.White
                             )
                         }

@@ -34,6 +34,7 @@
     <application
         android:name=".LoomiApplication"
         android:allowBackup="true"
+        android:hardwareAccelerated="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -67,6 +68,10 @@
             android:theme="@style/Theme.Loomi" />
         <activity
             android:name=".Setting"
+            android:exported="false"
+            android:theme="@style/Theme.Loomi" />
+        <activity
+            android:name=".PermissionsActivity"
             android:exported="false"
             android:theme="@style/Theme.Loomi" />
         <activity

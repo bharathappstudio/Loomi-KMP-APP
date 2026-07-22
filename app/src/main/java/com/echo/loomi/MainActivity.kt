@@ -300,37 +300,49 @@ fun formatLastSeen(lastSeen: Long): String {
 fun SnapStyleScreen(onLogout: () -> Unit, onAddAccount: () -> Unit) {
     val pagerState = rememberPagerState(initialPage = 1) { 2 }
     val scope = rememberCoroutineScope()
+    var isShortsVisible by remember { mutableStateOf(false) }
 
-    HorizontalPager(
-        state = pagerState,
-        modifier = Modifier.fillMaxSize(),
-        beyondViewportPageCount = 1 // Keeps neighboring pages in memory for smooth transitions
-    ) { page ->
-        when (page) {
-            0 -> CameraScreen(
-                isActive = pagerState.currentPage == 0,
-                onBack = {
-                    scope.launch {
-                        pagerState.animateScrollToPage(1)
+    Box(modifier = Modifier.fillMaxSize()) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+            beyondViewportPageCount = 1
+        ) { page ->
+            when (page) {
+                0 -> CameraScreen(
+                    isActive = pagerState.currentPage == 0,
+                    onBack = {
+                        scope.launch {
+                            pagerState.animateScrollToPage(1)
+                        }
                     }
-                }
-            )
-            1 -> MainContent(
-                onLogout = onLogout,
-                onAddAccount = onAddAccount,
-                onCameraClick = {
-                    scope.launch {
-                        pagerState.animateScrollToPage(0)
+                )
+                1 -> MainContent(
+                    onLogout = onLogout,
+                    onAddAccount = onAddAccount,
+                    onCameraClick = {
+                        scope.launch {
+                            pagerState.animateScrollToPage(0)
+                        }
+                    },
+                    onShortsClick = {
+                        isShortsVisible = true
                     }
-                }
-            )
+                )
+            }
+        }
+
+        if (isShortsVisible) {
+            Box(modifier = Modifier.fillMaxSize().zIndex(100f)) {
+                ShortsScreen(onBack = { isShortsVisible = false })
+            }
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: () -> Unit) {
+fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: () -> Unit, onShortsClick: () -> Unit) {
     val isDark = isSystemInDarkTheme()
     val usersList = remember { mutableStateListOf<SnapUser>() }
     val storiesList = remember { mutableStateListOf<Story>() }
@@ -1017,6 +1029,7 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
                         isSearchVisible = !isSearchVisible
                         if (isSearchVisible) isStoriesVisible = false
                     },
+                    onShortsClick = onShortsClick,
                     onAddAccount = onAddAccount,
                     onStoryClick = {
                         isStoriesVisible = !isStoriesVisible
@@ -1343,6 +1356,7 @@ fun SnapChatItem(user: SnapUser, onClick: () -> Unit, onLongClick: () -> Unit, i
 fun FloatingBottomNavBar(
     onCameraClick: () -> Unit,
     onSearchClick: () -> Unit,
+    onShortsClick: () -> Unit,
     onAddAccount: () -> Unit,
     onStoryClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -1351,12 +1365,14 @@ fun FloatingBottomNavBar(
     val bgColor = if (isDark) Color(0xFF1A1A1A) else Color(0xFFFFF2D9)
     val iconColor = if (isDark) Color.White else Color.Black
 
-    Box(modifier = modifier.zIndex(1f).padding(horizontal = 80.dp).height(50.dp).clip(RoundedCornerShape(30.dp)).background(bgColor).border(width = 2.dp, color = Color.White.copy(alpha = 0.2f), shape = RoundedCornerShape(30.dp))) {
+    Box(modifier = modifier.zIndex(1f).padding(horizontal = 40.dp).height(50.dp).clip(RoundedCornerShape(30.dp)).background(bgColor).border(width = 2.dp, color = Color.White.copy(alpha = 0.2f), shape = RoundedCornerShape(30.dp))) {
         Row(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onCameraClick, modifier = Modifier.size(36.dp)) { Icon(painterResource(R.drawable.camera), null, tint = iconColor, modifier = Modifier.size(20.dp)) }
-            Spacer(modifier = Modifier.width(20.dp))
+            Spacer(modifier = Modifier.width(16.dp))
             IconButton(onClick = onSearchClick, modifier = Modifier.size(36.dp)) { Icon(painterResource(R.drawable.search), null, tint = iconColor, modifier = Modifier.size(20.dp)) }
-            Spacer(modifier = Modifier.width(20.dp))
+            Spacer(modifier = Modifier.width(16.dp))
+            IconButton(onClick = onShortsClick, modifier = Modifier.size(36.dp)) { Icon(painterResource(R.drawable.video), null, tint = iconColor, modifier = Modifier.size(20.dp)) }
+            Spacer(modifier = Modifier.width(16.dp))
             Box(
                 modifier = Modifier
                     .size(36.dp)

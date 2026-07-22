@@ -144,7 +144,7 @@ fun SettingUI(onLogout: () -> Unit) {
                     colorIndex3 = (colorIndex3 + 1) % googleColors.size
                 }
             }
-            delay(4000)
+            delay(500)
             isProfileLoading = false
         }
     }
@@ -269,7 +269,7 @@ fun SettingUI(onLogout: () -> Unit) {
         Spacer(Modifier.height(24.dp))
 
         SettingRow("Loomi Realtime Database", true) { /* context.startActivity(Intent(context, DataBackupScreen::class.java)) */ }
-        SettingRow("Permissions") { /* context.startActivity(Intent(context, PermissionsActivity::class.java)) */ }
+        SettingRow("Permissions") { context.startActivity(Intent(context, PermissionsActivity::class.java)) }
         SettingRow("APP-Release") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://gitlab.com/jarvisvbharath11/Loomi/-/blob/release-apk/app/release/app-release.apk?ref_type=heads"))) }
         SettingRow("Give feedback") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://cal.com/ui-studio13"))) }
         SettingRow("Call to Developer") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("tel:+917094589909"))) }

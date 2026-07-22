@@ -320,38 +320,7 @@ fun CameraView(isActive: Boolean, onBack: () -> Unit, onImageCaptured: (Uri) -> 
                         )
                     }
                 }
-
-                // 2. Top-Right Pill (Icons)
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = 20.dp, y = (-10).dp)
-                        .clip(RoundedCornerShape(25.dp))
-                        .border(
-                            2.dp,
-                            if (isDark) Color.White.copy(0.3f) else Color.White,
-                            RoundedCornerShape(25.dp)
-                        )
-                        .background(if (isDark) Color(0xFF1A1A1A) else Color(0xFFFFE0B2))
-                        .padding(horizontal = 30.dp, vertical = 15.dp),
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        painterResource(R.drawable.call),
-                        contentDescription = null,
-                        tint = if (isDark) Color.White else Color.Black,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Icon(
-                        painterResource(R.drawable.video),
-                        contentDescription = null,
-                        tint = if (isDark) Color.White else Color.Black,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-
-                // 3. Bottom-Left Rounded Square (Music)
+                // 2. Bottom-Left Rounded Square (Music)
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
