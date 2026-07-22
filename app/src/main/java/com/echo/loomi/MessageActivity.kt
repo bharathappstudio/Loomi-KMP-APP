@@ -165,13 +165,16 @@ class MessageActivity : ComponentActivity() {
                 }
 
                 val blurValue by animateDpAsState(
-                    targetValue = if (sosActive) 30.dp else if (selectedImage.value != null) 15.dp else 0.dp,
-                    animationSpec = tween(500),
+                    targetValue = if (sosActive) 30.dp else if (selectedImage.value != null) 20.dp else 0.dp,
+                    animationSpec = tween(300, easing = FastOutSlowInEasing),
                     label = "sos_blur"
                 )
 
                 Box(modifier = Modifier.fillMaxSize()) {
-                    Box(modifier = Modifier.fillMaxSize().blur(blurValue)) {
+                    Box(modifier = Modifier
+                        .fillMaxSize()
+                        .blur(blurValue)
+                    ) {
                         MessageScreen(
                             receiverUid = receiverUid,
                             receiverName = receiverName,
@@ -190,27 +193,39 @@ class MessageActivity : ComponentActivity() {
                         )
                     }
 
-                    // Full Screen HD Image Viewer
-                    selectedImage.value?.let { base64 ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.5f))
-                                .clickable { selectedImage.value = null },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            val imageBytes = Base64.decode(base64, Base64.DEFAULT)
-                            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                            if (bitmap != null) {
-                                Image(
-                                    bitmap = bitmap.asImageBitmap(),
-                                    contentDescription = "Full Screen Image",
-                                    modifier = Modifier
-                                        .fillMaxWidth(0.8f)
-                                        .clip(RoundedCornerShape(20.dp))
-                                        .border(2.dp, Color.White.copy(alpha = 9f), RoundedCornerShape(20.dp)),
-                                    contentScale = ContentScale.Fit
-                                )
+                    // Full Screen HD Image Viewer (Smooth & Fast Transition)
+                    AnimatedVisibility(
+                        visible = selectedImage.value != null,
+                        enter = fadeIn(tween(300)) + scaleIn(tween(300, easing = FastOutSlowInEasing), initialScale = 0.92f),
+                        exit = fadeOut(tween(250)) + scaleOut(tween(250), targetScale = 0.92f)
+                    ) {
+                        selectedImage.value?.let { base64 ->
+                            val bitmap = remember(base64) {
+                                try {
+                                    val imageBytes = Base64.decode(base64, Base64.DEFAULT)
+                                    BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)?.asImageBitmap()
+                                } catch (e: Exception) {
+                                    null
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clickable { selectedImage.value = null },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (bitmap != null) {
+                                    Image(
+                                        bitmap = bitmap,
+                                        contentDescription = "Full Screen Image",
+                                        modifier = Modifier
+                                            .fillMaxWidth(0.92f)
+                                            .clip(RoundedCornerShape(24.dp))
+                                            .border(2.dp, Color.White.copy(alpha = 8f), RoundedCornerShape(24.dp)),
+                                        contentScale = ContentScale.Fit
+                                    )
+                                }
                             }
                         }
                     }

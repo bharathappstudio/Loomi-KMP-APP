@@ -24,9 +24,6 @@ import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,24 +34,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -169,7 +160,7 @@ fun CameraScreen(isActive: Boolean, onBack: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CameraView(isActive: Boolean, onBack: () -> Unit, onImageCaptured: (Uri) -> Unit, currentUserImageAsset: String) {
     val isDark = isSystemInDarkTheme()
@@ -194,6 +185,7 @@ fun CameraView(isActive: Boolean, onBack: () -> Unit, onImageCaptured: (Uri) -> 
     val sheetState = rememberModalBottomSheetState()
     var selectedTrackId by remember { mutableStateOf<Long?>(null) }
     var selectedTrackName by remember { mutableStateOf<String?>(null) }
+    var selectedTrackArtworkUrl by remember { mutableStateOf<String?>(null) }
 
     val mediaPlayer = remember { MediaPlayer().apply { isLooping = true } }
     var currentPlayingUrl by remember { mutableStateOf<String?>(null) }
@@ -213,27 +205,6 @@ fun CameraView(isActive: Boolean, onBack: () -> Unit, onImageCaptured: (Uri) -> 
     }
 
     var isUploading by remember { mutableStateOf(false) }
-
-    val googleColors = listOf(
-        Color(0xFF8AB4F8), Color(0xFFF28B82), Color(0xFFFDD663),
-        Color(0xFF81C995), Color(0xFF669DF6)
-    )
-    var colorIndex1 by remember { mutableIntStateOf(0) }
-    var colorIndex2 by remember { mutableIntStateOf(1) }
-    var colorIndex3 by remember { mutableIntStateOf(2) }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            kotlinx.coroutines.delay(400) // Faster cycle
-            colorIndex1 = (colorIndex1 + 1) % googleColors.size
-            colorIndex2 = (colorIndex2 + 1) % googleColors.size
-            colorIndex3 = (colorIndex3 + 1) % googleColors.size
-        }
-    }
-
-    val c1 by animateColorAsState(googleColors[colorIndex1], tween(300), label = "c1")
-    val c2 by animateColorAsState(googleColors[colorIndex2], tween(300), label = "c2")
-    val c3 by animateColorAsState(googleColors[colorIndex3], tween(300), label = "c3")
 
     DisposableEffect(Unit) {
         onDispose {
@@ -304,79 +275,117 @@ fun CameraView(isActive: Boolean, onBack: () -> Unit, onImageCaptured: (Uri) -> 
     Box(modifier = Modifier.fillMaxSize().background(if (isDark) Color.Black else Color(0xFFFFFBF6))) {
 
         // --- CENTERED OVERLAY GROUP ---
-        Box(modifier = Modifier.align(Alignment.Center)) {
-            // 1. Centered Camera Circle
-            Box(
-                modifier = Modifier
-                    .size(200.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black)
-                    .border(2.dp, if (isDark) Color.White.copy(0.2f) else Color.Transparent, CircleShape)
-            ) {
-                if (selectedPreviewUri != null) {
-                    val previewModel = remember(selectedPreviewUri) {
-                        if (selectedPreviewUri?.scheme == "data") {
-                            try {
-                                val base64Data = selectedPreviewUri.toString().substringAfter("base64,")
-                                Base64.decode(base64Data, Base64.DEFAULT)
-                            } catch (e: Exception) {
+        Column(
+            modifier = Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box {
+                // 1. Centered Camera Circle
+                Box(
+                    modifier = Modifier
+                        .size(200.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black)
+                        .border(
+                            2.dp,
+                            if (isDark) Color.White.copy(0.2f) else Color.Transparent,
+                            CircleShape
+                        )
+                ) {
+                    if (selectedPreviewUri != null) {
+                        val previewModel = remember(selectedPreviewUri) {
+                            if (selectedPreviewUri?.scheme == "data") {
+                                try {
+                                    val base64Data =
+                                        selectedPreviewUri.toString().substringAfter("base64,")
+                                    Base64.decode(base64Data, Base64.DEFAULT)
+                                } catch (e: Exception) {
+                                    selectedPreviewUri!!
+                                }
+                            } else {
                                 selectedPreviewUri!!
                             }
-                        } else {
-                            selectedPreviewUri!!
                         }
-                    }
-                    coil.compose.AsyncImage(
-                        model = previewModel,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
+                        coil.compose.AsyncImage(
+                            model = previewModel,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
 
-                } else {
-                    AndroidView(
-                        factory = { previewView },
-                        modifier = Modifier.fillMaxSize()
+                    } else {
+                        AndroidView(
+                            factory = { previewView },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+
+                // 2. Top-Right Pill (Icons)
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 20.dp, y = (-10).dp)
+                        .clip(RoundedCornerShape(25.dp))
+                        .border(
+                            2.dp,
+                            if (isDark) Color.White.copy(0.3f) else Color.White,
+                            RoundedCornerShape(25.dp)
+                        )
+                        .background(if (isDark) Color(0xFF1A1A1A) else Color(0xFFFFE0B2))
+                        .padding(horizontal = 30.dp, vertical = 15.dp),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        painterResource(R.drawable.call),
+                        contentDescription = null,
+                        tint = if (isDark) Color.White else Color.Black,
+                        modifier = Modifier.size(16.dp)
                     )
+                    Icon(
+                        painterResource(R.drawable.video),
+                        contentDescription = null,
+                        tint = if (isDark) Color.White else Color.Black,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                // 3. Bottom-Left Rounded Square (Music)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .offset(x = (-15).dp, y = 15.dp)
+                        .size(65.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .border(
+                            2.dp,
+                            if (isDark) Color.White.copy(0.3f) else Color.White,
+                            RoundedCornerShape(16.dp)
+                        )
+                        .background(if (isDark) Color(0xFF2A2A2A) else Color(0xFFFFAB91))
+                        .clickable { showMusicSheet = true }
+                        .padding(if (selectedTrackArtworkUrl != null) 0.dp else 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (selectedTrackArtworkUrl != null) {
+                        coil.compose.AsyncImage(
+                            model = selectedTrackArtworkUrl,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Icon(
+                            painterResource(R.drawable.musicnote),
+                            contentDescription = null,
+                            tint = Color(0xFFFFFFFF),
+                            modifier = Modifier.size(25.dp)
+                        )
+                    }
                 }
             }
 
-            // 2. Top-Right Pill (Icons)
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 20.dp, y = (-10).dp)
-                    .clip(RoundedCornerShape(25.dp))
-                    .border(2.dp, if (isDark) Color.White.copy(0.3f) else Color.White, RoundedCornerShape(25.dp))
-                    .background(if (isDark) Color(0xFF1A1A1A) else Color(0xFFFFE0B2))
-                    .padding(horizontal = 30.dp, vertical = 15.dp),
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(painterResource(R.drawable.call), contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(16.dp))
-                Icon(painterResource(R.drawable.video), contentDescription = null, tint = if (isDark) Color.White else Color.Black, modifier = Modifier.size(16.dp))
-            }
-
-            // 3. Bottom-Left Rounded Square (Music)
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .offset(x = (-15).dp, y = 15.dp)
-                    .size(65.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .border(2.dp, if (isDark) Color.White.copy(0.3f) else Color.White, RoundedCornerShape(16.dp))
-                    .background(if (isDark) Color(0xFF2A2A2A) else Color(0xFFFFAB91))
-                    .clickable { showMusicSheet = true }
-                    .padding(10.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painterResource(R.drawable.musicnote),
-                    contentDescription = null,
-                    tint = Color(0xFFFFFFFF),
-                    modifier = Modifier.size(25.dp)
-                )
-            }
         }
         // --- END CENTERED OVERLAY GROUP ---
 
@@ -422,6 +431,25 @@ fun CameraView(isActive: Boolean, onBack: () -> Unit, onImageCaptured: (Uri) -> 
                 .padding(bottom = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            if (selectedTrackName != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        painter = painterResource(R.drawable.musicnote),
+                        contentDescription = null,
+                        tint = if (isDark) Color.White.copy(0.7f) else Color.Black.copy(0.7f),
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = selectedTrackName!!,
+                        fontSize = 12.sp,
+                        color = if (isDark) Color.White.copy(0.7f) else Color.Black.copy(0.7f),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                Spacer(modifier = Modifier.height(15.dp))
+            }
+
             // 3 Small Circles Above Capture Button
             Row(
                 modifier = Modifier.padding(bottom = 15.dp),
@@ -544,32 +572,32 @@ fun CameraView(isActive: Boolean, onBack: () -> Unit, onImageCaptured: (Uri) -> 
                                     }
                                     onImageCaptured(selectedPreviewUri!!)
                                 } else {
-                                    takePhoto(context, imageCapture, cameraExecutor) { uri ->
-                                        scope.launch {
-                                            uploadToStory(context, uri, selectedTrackId, selectedTrackName) {
-                                                isUploading = false
+                                    takePhoto(
+                                        context = context,
+                                        imageCapture = imageCapture,
+                                        executor = cameraExecutor,
+                                        onImageCaptured = { uri ->
+                                            scope.launch {
+                                                uploadToStory(context, uri, selectedTrackId, selectedTrackName) {
+                                                    isUploading = false
+                                                }
+                                                onImageCaptured(uri)
                                             }
-                                            onImageCaptured(uri)
+                                        },
+                                        onError = {
+                                            isUploading = false
                                         }
-                                    }
+                                    )
                                 }
                             }
                         },
                     contentAlignment = Alignment.Center
                 ) {
                     if (isUploading) {
-                        LoadingIndicator(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-                                .drawWithContent {
-                                    drawContent()
-                                    drawRect(
-                                        brush = Brush.linearGradient(listOf(c1, c2, c3)),
-                                        blendMode = BlendMode.SrcAtop
-                                    )
-                                },
-                            color = Color.White
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(40.dp),
+                            color = Color.White,
+                            strokeWidth = 3.dp
                         )
                     } else if (selectedPreviewUri != null) {
                         Icon(
@@ -601,8 +629,7 @@ fun CameraView(isActive: Boolean, onBack: () -> Unit, onImageCaptured: (Uri) -> 
         ModalBottomSheet(
             onDismissRequest = { showMusicSheet = false },
             sheetState = sheetState,
-            containerColor = if (isDark) Color(0xFF121212) else Color.White,
-            dragHandle = { BottomSheetDefaults.DragHandle() }
+            containerColor = if (isDark) Color(0xFF121212) else Color(0xFFE8F5E9),
         ) {
             var musicSearchQuery by remember { mutableStateOf("") }
             var musicResults by remember { mutableStateOf<List<MusicTrack>>(emptyList()) }
@@ -617,7 +644,7 @@ fun CameraView(isActive: Boolean, onBack: () -> Unit, onImageCaptured: (Uri) -> 
             }
 
             LaunchedEffect(musicSearchQuery) {
-                if (musicSearchQuery.length > 2) {
+                if (musicSearchQuery.length > 1) {
                     kotlinx.coroutines.delay(300) // Debounce search
                     isSearching = true
                     musicResults = searchMusic(musicSearchQuery)
@@ -632,33 +659,34 @@ fun CameraView(isActive: Boolean, onBack: () -> Unit, onImageCaptured: (Uri) -> 
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 15.dp, vertical = 10.dp)
+                    .padding(horizontal = 10.dp, vertical = 10.dp)
                     .navigationBarsPadding()
             ) {
                 TextField(
                     value = musicSearchQuery,
                     onValueChange = { musicSearchQuery = it },
-                    placeholder = { Text("Search tracks...", color = if (isDark) Color.White.copy(0.4f) else Color.Gray) },
+                    placeholder = { Text("Search for Song ...", color = Color.Black.copy(0.4f)) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp)
+                        .border(1.dp, Color.Black, RoundedCornerShape(28.dp))
                         .clip(RoundedCornerShape(28.dp)),
                     leadingIcon = { 
                         if (isSearching) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = if (isDark) Color.White else Color.Black)
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.Black)
                         } else {
-                            Icon(painterResource(R.drawable.search), null, modifier = Modifier.size(20.dp), tint = if (isDark) Color.White else Color.Black)
+                            Icon(painterResource(R.drawable.search), null, modifier = Modifier.size(20.dp), tint = Color.Black)
                         }
                     },
                     colors = TextFieldDefaults.colors(
-                        focusedContainerColor = if (isDark) Color.White.copy(0.1f) else Color(0xFFF5F5F5),
-                        unfocusedContainerColor = if (isDark) Color.White.copy(0.1f) else Color(0xFFF5F5F5),
-                        disabledContainerColor = if (isDark) Color.White.copy(0.1f) else Color(0xFFF5F5F5),
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        disabledContainerColor = Color.White,
                         focusedIndicatorColor = Color.Transparent,
                         unfocusedIndicatorColor = Color.Transparent,
-                        cursorColor = if (isDark) Color.White else Color.Black,
-                        focusedTextColor = if (isDark) Color.White else Color.Black,
-                        unfocusedTextColor = if (isDark) Color.White else Color.Black
+                        cursorColor = Color.Black,
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black
                     ),
                     singleLine = true
                 )
@@ -683,11 +711,7 @@ fun CameraView(isActive: Boolean, onBack: () -> Unit, onImageCaptured: (Uri) -> 
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        if (currentPlayingUrl == track.previewUrl) {
-                                            mediaPlayer.stop()
-                                            mediaPlayer.reset()
-                                            currentPlayingUrl = null
-                                        } else {
+                                        if (currentPlayingUrl != track.previewUrl) {
                                             mediaPlayer.stop()
                                             mediaPlayer.reset()
                                             mediaPlayer.setAudioAttributes(
@@ -708,7 +732,36 @@ fun CameraView(isActive: Boolean, onBack: () -> Unit, onImageCaptured: (Uri) -> 
                                     .padding(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)).background(if (isDark) Color.White.copy(0.1f) else Color.LightGray)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(50.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isDark) Color.White.copy(0.1f) else Color.LightGray)
+                                        .clickable {
+                                            selectedTrackId = track.trackId
+                                            selectedTrackName = track.trackName
+                                            selectedTrackArtworkUrl = track.artworkUrl.replace("100x100bb.jpg", "600x600bb.jpg")
+                                            
+                                            if (currentPlayingUrl != track.previewUrl) {
+                                                mediaPlayer.stop()
+                                                mediaPlayer.reset()
+                                                mediaPlayer.setAudioAttributes(
+                                                    AudioAttributes.Builder()
+                                                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                                                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                                                        .build()
+                                                )
+                                                mediaPlayer.setDataSource(track.previewUrl)
+                                                mediaPlayer.prepareAsync()
+                                                mediaPlayer.setOnPreparedListener { 
+                                                    it.isLooping = true
+                                                    it.start() 
+                                                }
+                                                currentPlayingUrl = track.previewUrl
+                                            }
+                                            showMusicSheet = false
+                                        }
+                                ) {
                                     coil.compose.AsyncImage(
                                         model = track.artworkUrl,
                                         contentDescription = null,
@@ -720,24 +773,6 @@ fun CameraView(isActive: Boolean, onBack: () -> Unit, onImageCaptured: (Uri) -> 
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(track.trackName, fontWeight = FontWeight.Bold, maxLines = 1, color = if (isDark) Color.White else Color.Black)
                                     Text(track.artistName, style = MaterialTheme.typography.bodySmall, color = if (isDark) Color.White.copy(0.6f) else Color.Gray, maxLines = 1)
-                                }
-                                
-                                // Selection Icon (Tap this to lock song and close sheet)
-                                if (currentPlayingUrl == track.previewUrl) {
-                                    IconButton(
-                                        onClick = {
-                                            selectedTrackId = track.trackId
-                                            selectedTrackName = track.trackName
-                                            showMusicSheet = false
-                                        },
-                                        modifier = Modifier.size(40.dp)
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.musicnote),
-                                            contentDescription = "Select",
-                                            modifier = Modifier.size(24.dp),
-                                        )
-                                    }
                                 }
                             }
                         }
@@ -864,7 +899,8 @@ private fun takePhoto(
     context: Context,
     imageCapture: ImageCapture,
     executor: ExecutorService,
-    onImageCaptured: (Uri) -> Unit
+    onImageCaptured: (Uri) -> Unit,
+    onError: (ImageCaptureException) -> Unit
 ) {
     val photoFile = File(context.cacheDir, "temp_story_${System.currentTimeMillis()}.jpg")
     val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
@@ -875,6 +911,7 @@ private fun takePhoto(
         object : ImageCapture.OnImageSavedCallback {
             override fun onError(exc: ImageCaptureException) {
                 Log.e("CameraView", "Photo capture failed: ${exc.message}", exc)
+                onError(exc)
             }
 
             override fun onImageSaved(output: ImageCapture.OutputFileResults) {

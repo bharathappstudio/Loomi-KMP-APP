@@ -1187,10 +1187,10 @@ fun StoryBottomSheet(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .offset(x = (0.dp), y = (-10.dp))
-                        .size(70.dp)
-                        .clip(RoundedCornerShape(15.dp))
-                        .border(2.dp, Color.White, RoundedCornerShape(15.dp))
-                        .background(Color.Gray.copy(alpha = 0.2f)),
+                        .size(65.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .border(2.dp, Color.White, RoundedCornerShape(16.dp))
+                        .background(Color(0xFFFFAB91)),
                     contentAlignment = Alignment.Center
                 ) {
                     if (songArtworkUrl != null) {
@@ -1205,7 +1205,7 @@ fun StoryBottomSheet(
                             painter = painterResource(R.drawable.musicnote),
                             contentDescription = null,
                             tint = Color.White,
-                            modifier = Modifier.size(30.dp)
+                            modifier = Modifier.size(25.dp)
                         )
                     }
                 }
