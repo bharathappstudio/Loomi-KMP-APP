@@ -74,11 +74,28 @@ class Setting : ComponentActivity() {
             LoomiTheme {
                 SettingUI(
                     onLogout = {
-                        FirebaseAuth.getInstance().signOut()
+                        val auth = FirebaseAuth.getInstance()
+                        val uid = auth.currentUser?.uid
+
+                        // Stop the background service immediately
+                        val serviceIntent = Intent(this@Setting, MessageListenerService::class.java)
+                        stopService(serviceIntent)
+
+                        if (uid != null) {
+                            val database = com.google.firebase.database.FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").reference
+                            database.child("users").child(uid).child("name").get().addOnSuccessListener { s ->
+                                if (s.exists()) {
+                                    database.child("users").child(uid).child("status").setValue("Offline")
+                                    database.child("users").child(uid).child("lastSeen").setValue(com.google.firebase.database.ServerValue.TIMESTAMP)
+                                }
+                            }
+                        }
+
+                        auth.signOut()
                         googleSignInClient.signOut().addOnCompleteListener {
                             prefs.edit().clear().apply()
                             startActivity(
-                                Intent(this, MainActivity::class.java).apply {
+                                Intent(this@Setting, MainActivity::class.java).apply {
                                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                                 }
                             )

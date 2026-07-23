@@ -138,10 +138,20 @@ class MainActivity : ComponentActivity() {
                         onLogout = {
                             val auth = FirebaseAuth.getInstance()
                             val uid = auth.currentUser?.uid
+                            
+                            // Stop the background service immediately
+                            val serviceIntent = Intent(this@MainActivity, MessageListenerService::class.java)
+                            stopService(serviceIntent)
+
                             if (uid != null) {
                                 val database = FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").reference
-                                database.child("users").child(uid).child("status").setValue("Offline")
-                                database.child("users").child(uid).child("lastSeen").setValue(ServerValue.TIMESTAMP)
+                                // Only update status if user already exists to avoid ghost users
+                                database.child("users").child(uid).child("name").get().addOnSuccessListener { s ->
+                                    if (s.exists()) {
+                                        database.child("users").child(uid).child("status").setValue("Offline")
+                                        database.child("users").child(uid).child("lastSeen").setValue(ServerValue.TIMESTAMP)
+                                    }
+                                }
                             }
                             googleAuthClient.signOut()
                             getSharedPreferences("echo_prefs", MODE_PRIVATE).edit { clear() }
@@ -169,7 +179,8 @@ class MainActivity : ComponentActivity() {
         }
 
         try {
-            FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").setPersistenceEnabled(true)
+            // Disabled persistence to prevent ghost user loops and stale presence data
+            FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").setPersistenceEnabled(false)
         } catch (ignored: Exception) {}
 
         googleAuthClient = GoogleAuthClient(this) { success ->
@@ -196,8 +207,13 @@ class MainActivity : ComponentActivity() {
                 val token = task.result
                 val uid = auth.currentUser?.uid
                 if (uid != null) {
-                    FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/")
-                        .reference.child("users").child(uid).child("fcmToken").setValue(token)
+                    val dbRef = FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").reference
+                    // Only update fcmToken if user exists in DB to avoid creating ghost users
+                    dbRef.child("users").child(uid).child("name").get().addOnSuccessListener { s ->
+                        if (s.exists()) {
+                            dbRef.child("users").child(uid).child("fcmToken").setValue(token)
+                        }
+                    }
                 }
             }
         }
@@ -489,7 +505,7 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
 
         database.child("users").child(uid).addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                if (!snapshot.exists()) {
+                if (!snapshot.exists() || !snapshot.hasChild("name")) {
                     onLogout()
                 }
             }
@@ -504,15 +520,20 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
                 isOffline = !connected
 
                 if (connected) {
-                    // Firebase special logic: marks user Offline automatically if they lose connection
-                    val statusRef = database.child("users").child(uid).child("status")
-                    val lastSeenRef = database.child("users").child(uid).child("lastSeen")
+                    // Check if user exists in database before setting online status
+                    database.child("users").child(uid).child("name").get().addOnSuccessListener { userSnapshot ->
+                        if (userSnapshot.exists()) {
+                            // Firebase special logic: marks user Offline automatically if they lose connection
+                            val statusRef = database.child("users").child(uid).child("status")
+                            val lastSeenRef = database.child("users").child(uid).child("lastSeen")
 
-                    statusRef.onDisconnect().setValue("Offline")
-                    lastSeenRef.onDisconnect().setValue(ServerValue.TIMESTAMP)
+                            statusRef.onDisconnect().setValue("Offline")
+                            lastSeenRef.onDisconnect().setValue(ServerValue.TIMESTAMP)
 
-                    // Mark as Online now that we are connected
-                    statusRef.setValue("Online")
+                            // Mark as Online now that we are connected
+                            statusRef.setValue("Online")
+                        }
+                    }
                 }
             }
             override fun onCancelled(error: DatabaseError) {}

@@ -15,8 +15,13 @@ class LoomiFirebaseMessagingService : FirebaseMessagingService() {
         // Update token in database for the current user
         val uid = FirebaseAuth.getInstance().currentUser?.uid
         if (uid != null) {
-            FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/")
-                .reference.child("users").child(uid).child("fcmToken").setValue(token)
+            val dbRef = FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").reference
+            // Only update token if user exists in DB to avoid creating ghost users
+            dbRef.child("users").child(uid).child("name").get().addOnSuccessListener { snapshot ->
+                if (snapshot.exists()) {
+                    dbRef.child("users").child(uid).child("fcmToken").setValue(token)
+                }
+            }
         }
     }
 

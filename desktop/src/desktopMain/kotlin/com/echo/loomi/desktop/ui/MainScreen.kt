@@ -122,8 +122,13 @@ fun MainScreen(
     LaunchedEffect(Unit) {
         val uid = FirebaseClient.currentUid ?: return@LaunchedEffect
         while (true) {
-            FirebaseClient.write("users/$uid/status", "Online")
-            FirebaseClient.write("users/$uid/lastSeen", System.currentTimeMillis())
+            // Check if user exists in DB before sending heartbeat to avoid creating "ghost" users
+            FirebaseClient.read("users/$uid/name") { nameJson ->
+                if (nameJson != null && nameJson != "null") {
+                    FirebaseClient.write("users/$uid/status", "Online")
+                    FirebaseClient.write("users/$uid/lastSeen", System.currentTimeMillis())
+                }
+            }
             delay(20000) // Heartbeat every 20 seconds
         }
     }

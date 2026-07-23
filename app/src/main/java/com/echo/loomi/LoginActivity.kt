@@ -100,10 +100,7 @@ class LoginActivity : AppCompatActivity() {
     private fun handleLoginTap() {
         val permissions = mutableListOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.CAMERA,
-            Manifest.permission.READ_CONTACTS,
-            Manifest.permission.RECORD_AUDIO
+            Manifest.permission.ACCESS_COARSE_LOCATION
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
@@ -311,7 +308,7 @@ fun BlackLoginUI(
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "Continue with Loomi",
+                                text = "Continue With Loomi",
                                 fontSize = 15.sp,
                                 fontFamily = FontFamily.Monospace,
                                 color = if (isDark) Color.Black else Color.White

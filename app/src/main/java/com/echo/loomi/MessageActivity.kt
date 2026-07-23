@@ -304,7 +304,11 @@ fun MessageScreen(
 
     LaunchedEffect(input) {
         if (input.isNotEmpty()) {
-            database.child("users").child(currentUid).child("typingWith").setValue(receiverUid)
+            database.child("users").child(currentUid).child("name").get().addOnSuccessListener { s ->
+                if (s.exists()) {
+                    database.child("users").child(currentUid).child("typingWith").setValue(receiverUid)
+                }
+            }
             delay(3000)
             database.child("users").child(currentUid).child("typingWith").removeValue()
         } else {

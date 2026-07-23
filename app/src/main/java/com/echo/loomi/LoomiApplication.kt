@@ -13,8 +13,9 @@ class LoomiApplication : Application() {
         
         try {
             if (FirebaseApp.getApps(this).isNotEmpty()) {
-                FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").setPersistenceEnabled(true)
-                Log.d("LoomiApp", "Firebase Database persistence enabled")
+                // Disabled persistence to prevent ghost user loops and stale presence data
+                FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").setPersistenceEnabled(false)
+                Log.d("LoomiApp", "Firebase Database persistence disabled")
             } else {
                 Log.e("LoomiApp", "FirebaseApp not initialized. Check google-services.json")
             }

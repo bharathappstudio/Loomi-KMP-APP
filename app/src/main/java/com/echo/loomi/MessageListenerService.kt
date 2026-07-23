@@ -23,8 +23,39 @@ class MessageListenerService : Service() {
     private val listeners = mutableMapOf<String, ValueEventListener>()
     private var usersListener: ValueEventListener? = null
     private var callsListener: ValueEventListener? = null
+    private var existenceListener: ValueEventListener? = null
+    private var connectedListener: ValueEventListener? = null
+    private var lastUid: String? = null
+    private val heartbeatHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
+
+    private val heartbeatRunnable: Runnable = object : Runnable {
+        override fun run() {
+            val uid = FirebaseAuth.getInstance().currentUser?.uid
+            if (uid == null) return
+            
+            database.child(".info/connected").addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(s: DataSnapshot) {
+                    val connected = s.getValue(Boolean::class.java) == true
+                    if (connected) {
+                        database.child("users").child(uid).child("name").get().addOnSuccessListener { userSnapshot ->
+                            if (userSnapshot.exists() && userSnapshot.value != null) {
+                                database.child("users").child(uid).child("status").setValue("Online")
+                                heartbeatHandler.postDelayed(heartbeatRunnable, 180000)
+                            } else {
+                                FirebaseAuth.getInstance().signOut()
+                                stopSelf()
+                            }
+                        }
+                    } else {
+                        heartbeatHandler.postDelayed(heartbeatRunnable, 180000)
+                    }
+                }
+                override fun onCancelled(e: DatabaseError) {}
+            })
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -41,19 +72,24 @@ class MessageListenerService : Service() {
                 val uid = auth.currentUser?.uid ?: return
                 val user = auth.currentUser
 
-                val batteryManager = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
-                val batteryLevel = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+                // Verify user existence before updating location
+                database.child("users").child(uid).child("name").get().addOnSuccessListener { s ->
+                    if (s.exists()) {
+                        val batteryManager = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+                        val batteryLevel = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
 
-                val locationData = mapOf(
-                    "name" to (user?.displayName ?: "Unknown"),
-                    "email" to (user?.email ?: ""),
-                    "latitude" to lastLocation.latitude,
-                    "longitude" to lastLocation.longitude,
-                    "battery" to "$batteryLevel%",
-                    "timestamp" to ServerValue.TIMESTAMP
-                )
+                        val locationData = mapOf(
+                            "name" to (user?.displayName ?: "Unknown"),
+                            "email" to (user?.email ?: ""),
+                            "latitude" to lastLocation.latitude,
+                            "longitude" to lastLocation.longitude,
+                            "battery" to "$batteryLevel%",
+                            "timestamp" to ServerValue.TIMESTAMP
+                        )
 
-                database.child("locations").child(uid).setValue(locationData)
+                        database.child("locations").child(uid).setValue(locationData)
+                    }
+                }
             }
         }
     }
@@ -78,57 +114,83 @@ class MessageListenerService : Service() {
             return START_NOT_STICKY
         }
 
-        // Removed startForeground() to stop showing the persistent notification
-        // We rely on FCM high-priority messages and WorkManager to keep the app responsive
+        if (uid != lastUid) {
+            cleanupListeners(lastUid)
+            lastUid = uid
+        }
+
+        // --- EXISTENCE CHECK & AUTO-LOGOUT ---
+        if (existenceListener == null) {
+            existenceListener = object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    if (!snapshot.exists() || !snapshot.hasChild("name")) {
+                        // Node deleted from console or incomplete, stop service and sign out
+                        FirebaseAuth.getInstance().signOut()
+                        stopSelf()
+                    }
+                }
+                override fun onCancelled(error: DatabaseError) {}
+            }
+            database.child("users").child(uid).addValueEventListener(existenceListener!!)
+        }
 
         // --- PRESENCE LOGIC ---
         val userStatusRef = database.child("users").child(uid).child("status")
         val lastSeenRef = database.child("users").child(uid).child("lastSeen")
-        userStatusRef.keepSynced(true)
         val connectedRef = database.child(".info/connected")
 
         // Set Online when connected, and Offline on disconnect automatically
-        connectedRef.addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val connected = snapshot.getValue(Boolean::class.java) ?: false
-                if (connected) {
-                    // When this device disconnects, remove it
-                    userStatusRef.onDisconnect().setValue("Offline")
-                    lastSeenRef.onDisconnect().setValue(ServerValue.TIMESTAMP)
-
-                    // Mark as Online now that we are connected
-                    userStatusRef.setValue("Online")
-                }
-            }
-            override fun onCancelled(error: DatabaseError) {}
-        })
-
-        // Heartbeat to keep connection alive and update status if needed
-        val handler = android.os.Handler(android.os.Looper.getMainLooper())
-        val heartbeat = object : Runnable {
-            override fun run() {
-                val currentUser = FirebaseAuth.getInstance().currentUser
-                if (currentUser != null) {
-                    // Only update if connected to avoid queuing multiple Online statuses during offline
-                    database.child(".info/connected").addListenerForSingleValueEvent(object : ValueEventListener {
-                        override fun onDataChange(s: DataSnapshot) {
-                            if (s.getValue(Boolean::class.java) == true) {
+        if (connectedListener == null) {
+            connectedListener = object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val connected = snapshot.getValue(Boolean::class.java) ?: false
+                    if (connected) {
+                        database.child("users").child(uid).child("name").get().addOnSuccessListener { userSnapshot ->
+                            if (userSnapshot.exists() && userSnapshot.value != null) {
+                                userStatusRef.onDisconnect().setValue("Offline")
+                                lastSeenRef.onDisconnect().setValue(ServerValue.TIMESTAMP)
                                 userStatusRef.setValue("Online")
+                            } else {
+                                // If name doesn't exist, we are a ghost. Don't set status, and log out.
+                                FirebaseAuth.getInstance().signOut()
+                                stopSelf()
                             }
                         }
-                        override fun onCancelled(e: DatabaseError) {}
-                    })
-                    handler.postDelayed(this, 180000) // 3 minutes
+                    }
                 }
+                override fun onCancelled(error: DatabaseError) {}
             }
+            connectedRef.addValueEventListener(connectedListener!!)
         }
-        handler.post(heartbeat)
+
+        // Heartbeat to keep connection alive
+        heartbeatHandler.removeCallbacks(heartbeatRunnable)
+        heartbeatHandler.post(heartbeatRunnable)
 
         startListening()
         listenForCalls()
         startLocationUpdates()
         
         return START_STICKY
+    }
+
+    private fun cleanupListeners(uid: String?) {
+        uid?.let {
+            existenceListener?.let { l -> database.child("users").child(it).removeEventListener(l) }
+            callsListener?.let { l -> database.child("calls").child(it).removeEventListener(l) }
+        }
+        connectedListener?.let { l -> database.child(".info/connected").removeEventListener(l) }
+        usersListener?.let { l -> database.child("users").removeEventListener(l) }
+        listeners.forEach { (chatId, listener) ->
+            database.child("chats").child(chatId).removeEventListener(listener)
+        }
+        
+        existenceListener = null
+        connectedListener = null
+        usersListener = null
+        callsListener = null
+        listeners.clear()
+        heartbeatHandler.removeCallbacks(heartbeatRunnable)
     }
 
     private fun listenForCalls() {
@@ -232,16 +294,7 @@ class MessageListenerService : Service() {
     }
 
     override fun onDestroy() {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid
-        if (uid != null) {
-            // Remove listeners but DO NOT set status to Offline here
-            // This keeps the user "Always Online" while the service attempts to restart
-            database.child("calls").child(uid).removeEventListener(callsListener!!)
-        }
-        usersListener?.let { database.child("users").removeEventListener(it) }
-        listeners.forEach { (chatId, listener) ->
-            database.child("chats").child(chatId).removeEventListener(listener)
-        }
+        cleanupListeners(lastUid)
         super.onDestroy()
     }
 }

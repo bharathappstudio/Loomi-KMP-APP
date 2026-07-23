@@ -83,6 +83,7 @@ class GoogleAuthClient(
             "uid" to uid,
             "name" to name,
             "email" to email,
+            "status" to "Online",
             "lastSeen" to System.currentTimeMillis()
         )
 
