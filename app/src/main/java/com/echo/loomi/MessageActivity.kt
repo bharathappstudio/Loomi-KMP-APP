@@ -83,16 +83,6 @@ class MessageActivity : ComponentActivity() {
         val chatId = if (currentUid < receiverUid) "${currentUid}_$receiverUid" else "${receiverUid}_$currentUid"
         val msgId = database.child("chats").child(chatId).push().key ?: ""
         
-        val notificationTrigger = mapOf(
-            "type" to "screenshot",
-            "senderId" to currentUid,
-            "senderName" to (auth.currentUser?.displayName ?: "Loomi User"),
-            "receiverId" to receiverUid,
-            "chatId" to chatId,
-            "timestamp" to ServerValue.TIMESTAMP
-        )
-        database.child("notification_triggers").push().setValue(notificationTrigger)
-        
         val systemMsg = ChatMessage(
             id = msgId,
             senderId = "system",
@@ -510,22 +500,6 @@ fun MessageScreen(
                         )
                         database.child("chats").child(chatId).child(msgId).setValue(message)
                         
-                        // --- SEND FCM PUSH TRIGGER ---
-                        // Note: In a production app, this should be done via Firebase Cloud Functions
-                        // for security. Here we trigger it by updating a special 'notifications' node
-                        // that a backend/server can listen to.
-                        val notificationTrigger = mapOf(
-                            "type" to "message",
-                            "senderId" to currentUid,
-                            "senderName" to (auth.currentUser?.displayName ?: "Loomi User"),
-                            "senderImage" to (auth.currentUser?.photoUrl?.toString() ?: ""),
-                            "messageText" to input, // Real text for notification
-                            "receiverId" to receiverUid,
-                            "chatId" to chatId,
-                            "timestamp" to ServerValue.TIMESTAMP
-                        )
-                        database.child("notification_triggers").push().setValue(notificationTrigger)
-
                         input = ""
                     }
                 },

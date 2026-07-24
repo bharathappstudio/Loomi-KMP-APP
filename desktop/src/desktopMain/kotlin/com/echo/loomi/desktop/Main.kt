@@ -13,8 +13,6 @@ import com.echo.loomi.desktop.ui.MainScreen
 import com.echo.loomi.desktop.ui.WelcomeScreen
 import com.echo.loomi.desktop.ui.theme.LoomiTheme
 import com.google.gson.Gson
-import com.google.gson.JsonParser
-import javafx.application.Platform
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.io.File
@@ -35,11 +33,6 @@ data class SessionData(
 )
 
 fun main(args: Array<String>) {
-    // Initialize JavaFX once at startup
-    try {
-        Platform.startup {}
-    } catch (e: Exception) {}
-
     startApp()
 }
 
@@ -61,10 +54,16 @@ fun startApp() = application {
                     FirebaseClient.read("users/${data.uid}/imageName") { dbImageName ->
                         println("Main: Read imageName from Firebase: $dbImageName")
                         val cleanDbImage = if (dbImageName == "null" || dbImageName == null) "" else dbImageName.replace("\"", "")
-                        val finalImage = if (cleanDbImage.isEmpty()) data.imageName else cleanDbImage
-                        session = data.copy(imageName = finalImage)
-                        currentScreen = SCREEN_MAIN
-                        println("Main: Navigating to Main Screen.")
+                        
+                        if (cleanDbImage.isEmpty()) {
+                            println("Main: Profile incomplete. Navigating to Welcome Screen.")
+                            session = data
+                            currentScreen = SCREEN_WELCOME
+                        } else {
+                            session = data.copy(imageName = cleanDbImage)
+                            currentScreen = SCREEN_MAIN
+                            println("Main: Navigating to Main Screen.")
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -101,27 +100,26 @@ fun startApp() = application {
                     LoginScreen(
                         onLoginSuccess = { token, uid, name, email, photoUrl ->
                             FirebaseClient.initAuth(token, uid)
-                            FirebaseClient.read("users/$uid") { userJson ->
-                                var dbImageName = ""
-                                if (userJson != null && userJson != "null") {
-                                    try {
-                                        val obj = JsonParser.parseString(userJson).asJsonObject
-                                        dbImageName = obj.get("imageName")?.asString ?: ""
-                                    } catch (e: Exception) {}
-                                }
-                                
-                                val userUpdates = mapOf(
-                                    "uid" to uid,
-                                    "name" to name,
-                                    "email" to email,
-                                    "lastSeen" to System.currentTimeMillis()
-                                )
-                                FirebaseClient.update("users/$uid", userUpdates)
+                            FirebaseClient.read("users/$uid/imageName") { dbImageNameJson ->
+                                val dbImageName = if (dbImageNameJson == null || dbImageNameJson == "null") "" else dbImageNameJson.replace("\"", "")
                                 
                                 val newSession = SessionData(token, uid, name, email, photoUrl, dbImageName)
                                 session = newSession
                                 saveSession(newSession)
-                                currentScreen = SCREEN_MAIN
+                                
+                                if (dbImageName.isEmpty()) {
+                                    currentScreen = SCREEN_WELCOME
+                                } else {
+                                    // Update basic info for existing users
+                                    val userUpdates = mapOf(
+                                        "uid" to uid,
+                                        "name" to name,
+                                        "email" to email,
+                                        "lastSeen" to System.currentTimeMillis()
+                                    )
+                                    FirebaseClient.update("users/$uid", userUpdates)
+                                    currentScreen = SCREEN_MAIN
+                                }
                             }
                         }
                     )
@@ -155,6 +153,8 @@ fun startApp() = application {
                     session?.let {
                         WelcomeScreen(
                             googlePhotoUrl = it.photoUrl,
+                            userName = it.name,
+                            userEmail = it.email,
                             onProfileComplete = {
                                 FirebaseClient.read("users/${it.uid}/imageName") { dbImageName ->
                                     val cleanDbImage = if (dbImageName == "null" || dbImageName == null) "" else dbImageName.replace("\"", "")

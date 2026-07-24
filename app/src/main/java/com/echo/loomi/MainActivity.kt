@@ -95,6 +95,11 @@ class MainActivity : ComponentActivity() {
     private var showSOSOverlay = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        try {
+            // Must be set before any other database usage
+            FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").setPersistenceEnabled(false)
+        } catch (ignored: Exception) {}
+
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -154,7 +159,10 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             googleAuthClient.signOut()
-                            getSharedPreferences("echo_prefs", MODE_PRIVATE).edit { clear() }
+                            getSharedPreferences("echo_prefs", MODE_PRIVATE).edit { 
+                                clear() 
+                                putBoolean("profile_done", false)
+                            }
 
                             val intent = Intent(this@MainActivity, LoginActivity::class.java)
                             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -218,18 +226,13 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        val serviceIntent = Intent(this, MessageListenerService::class.java)
-        startService(serviceIntent)
-
-        KeepAliveWorker.schedule(this)
-        SecurityWorker.schedule(this)
-
         if (!prefs.getBoolean("profile_done", false)) {
             val db = FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").reference
-            db.child("users").child(auth.currentUser!!.uid).child("imageName").get()
+            db.child("users").child(auth.currentUser!!.uid).get()
                 .addOnSuccessListener { snapshot ->
-                    if (snapshot.exists()) {
+                    if (snapshot.exists() && snapshot.hasChild("name") && snapshot.hasChild("imageName")) {
                         prefs.edit { putBoolean("profile_done", true) }
+                        startMainServices()
                     } else {
                         val intent = Intent(this, WelcomeActivity::class.java)
                         startActivity(intent)
@@ -241,7 +244,16 @@ class MainActivity : ComponentActivity() {
                     startActivity(intent)
                     finish()
                 }
+        } else {
+            startMainServices()
         }
+    }
+
+    private fun startMainServices() {
+        val serviceIntent = Intent(this, MessageListenerService::class.java)
+        startService(serviceIntent)
+        KeepAliveWorker.schedule(this)
+        SecurityWorker.schedule(this)
     }
 
     private fun checkBatteryOptimizations() {
@@ -506,6 +518,10 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
         database.child("users").child(uid).addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 if (!snapshot.exists() || !snapshot.hasChild("name")) {
+                    // If it's a ghost user (exists but no name), remove it to clean up DB
+                    if (snapshot.exists()) {
+                        snapshot.ref.removeValue()
+                    }
                     onLogout()
                 }
             }

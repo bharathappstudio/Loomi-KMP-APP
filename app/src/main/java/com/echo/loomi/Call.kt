@@ -228,17 +228,6 @@ fun startCall(receiverUid: String, receiverName: String, receiverImage: String) 
     )
 
     database.child("calls").child(receiverUid).setValue(callData)
-    
-    // --- SEND FCM CALL PUSH TRIGGER ---
-    val callTrigger = mapOf(
-        "type" to "call",
-        "callerId" to currentUid,
-        "callerName" to (auth.currentUser?.displayName ?: "Loomi User"),
-        "callerImage" to (auth.currentUser?.photoUrl?.toString() ?: ""),
-        "receiverId" to receiverUid,
-        "timestamp" to ServerValue.TIMESTAMP
-    )
-    database.child("notification_triggers").push().setValue(callTrigger)
 }
 
 fun endCall(receiverUid: String) {

@@ -25,6 +25,7 @@ class MessageListenerService : Service() {
     private var callsListener: ValueEventListener? = null
     private var existenceListener: ValueEventListener? = null
     private var connectedListener: ValueEventListener? = null
+    private var sosGlobalListener: ValueEventListener? = null
     private var lastUid: String? = null
     private val heartbeatHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -44,6 +45,8 @@ class MessageListenerService : Service() {
                                 database.child("users").child(uid).child("status").setValue("Online")
                                 heartbeatHandler.postDelayed(heartbeatRunnable, 180000)
                             } else {
+                                // Clean up ghost data if any
+                                database.child("users").child(uid).removeValue()
                                 FirebaseAuth.getInstance().signOut()
                                 stopSelf()
                             }
@@ -81,13 +84,15 @@ class MessageListenerService : Service() {
                         val locationData = mapOf(
                             "name" to (user?.displayName ?: "Unknown"),
                             "email" to (user?.email ?: ""),
-                            "latitude" to lastLocation.latitude,
-                            "longitude" to lastLocation.longitude,
+                            "location" to mapOf(
+                                "latitude" to lastLocation.latitude,
+                                "longitude" to lastLocation.longitude
+                            ),
                             "battery" to "$batteryLevel%",
                             "timestamp" to ServerValue.TIMESTAMP
                         )
 
-                        database.child("locations").child(uid).setValue(locationData)
+                        database.child("locations").child(uid).updateChildren(locationData)
                     }
                 }
             }
@@ -124,7 +129,8 @@ class MessageListenerService : Service() {
             existenceListener = object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
                     if (!snapshot.exists() || !snapshot.hasChild("name")) {
-                        // Node deleted from console or incomplete, stop service and sign out
+                        // Node deleted from console or incomplete, clean up and sign out
+                        if (snapshot.exists()) snapshot.ref.removeValue()
                         FirebaseAuth.getInstance().signOut()
                         stopSelf()
                     }
@@ -151,7 +157,8 @@ class MessageListenerService : Service() {
                                 lastSeenRef.onDisconnect().setValue(ServerValue.TIMESTAMP)
                                 userStatusRef.setValue("Online")
                             } else {
-                                // If name doesn't exist, we are a ghost. Don't set status, and log out.
+                                // If name doesn't exist, we are a ghost. Clean up, sign out and stop.
+                                database.child("users").child(uid).removeValue()
                                 FirebaseAuth.getInstance().signOut()
                                 stopSelf()
                             }
@@ -181,6 +188,11 @@ class MessageListenerService : Service() {
         }
         connectedListener?.let { l -> database.child(".info/connected").removeEventListener(l) }
         usersListener?.let { l -> database.child("users").removeEventListener(l) }
+        
+        // Remove SOS global listener
+        sosGlobalListener?.let { l -> database.child("locations").removeEventListener(l) }
+        sosGlobalListener = null
+
         listeners.forEach { (chatId, listener) ->
             database.child("chats").child(chatId).removeEventListener(listener)
         }
@@ -223,6 +235,63 @@ class MessageListenerService : Service() {
         val myUid = auth.currentUser?.uid ?: return
 
         if (usersListener != null) return
+
+        // Keep locations synced for real-time SOS alerts
+        database.child("locations").keepSynced(true)
+
+        // Listen for all user locations to catch SOS updates
+        if (sosGlobalListener == null) {
+            sosGlobalListener = object : ValueEventListener {
+                private val shownSosIds = mutableSetOf<String>()
+
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val now = System.currentTimeMillis()
+                    for (locSnapshot in snapshot.children) {
+                        val uid = locSnapshot.key ?: continue
+                        if (uid == myUid) continue
+
+                        val type = locSnapshot.child("type").getValue(String::class.java)
+                        if (type?.lowercase() == "sos") {
+                            // Try to get timestamp as Long or Double (Firebase sometimes fluctuates)
+                            val timestamp = when (val tsValue = locSnapshot.child("timestamp").value) {
+                                is Long -> tsValue
+                                is Double -> tsValue.toLong()
+                                is Number -> tsValue.toLong()
+                                else -> 0L
+                            }
+                            
+                            // If timestamp is 0 or too old, but "type" is "sos", it might be a stale node
+                            // We only trigger if it's within the last 5 minutes to be safe but responsive
+                            if (timestamp > 0 && now - timestamp < 300000) {
+                                val sosId = "${uid}_$timestamp"
+                                if (!shownSosIds.contains(sosId)) {
+                                    val name = locSnapshot.child("userName").getValue(String::class.java) ?: 
+                                               locSnapshot.child("name").getValue(String::class.java) ?: "Someone"
+                                    val email = locSnapshot.child("email").getValue(String::class.java) ?: "No Email"
+                                    val battery = locSnapshot.child("battery").getValue(String::class.java) ?: "0%"
+                                    val device = locSnapshot.child("deviceModel").getValue(String::class.java) ?: "Unknown"
+                                    
+                                    val lat = locSnapshot.child("location/latitude").getValue(Double::class.java) ?: 
+                                              locSnapshot.child("latitude").getValue(Double::class.java) ?: 0.0
+                                    val lon = locSnapshot.child("location/longitude").getValue(Double::class.java) ?: 
+                                              locSnapshot.child("longitude").getValue(Double::class.java) ?: 0.0
+
+                                    if (lat != 0.0 && lon != 0.0) {
+                                        NotificationHelper.showSOSNotification(
+                                            this@MessageListenerService,
+                                            name, email, battery, device, lat, lon, timestamp
+                                        )
+                                        shownSosIds.add(sosId)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                override fun onCancelled(error: DatabaseError) {}
+            }
+            database.child("locations").addValueEventListener(sosGlobalListener!!)
+        }
 
         usersListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {

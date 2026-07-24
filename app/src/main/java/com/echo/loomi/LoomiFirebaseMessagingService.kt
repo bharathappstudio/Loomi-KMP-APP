@@ -65,16 +65,22 @@ class LoomiFirebaseMessagingService : FirebaseMessagingService() {
                     )
                 } else if (type == "sos") {
                     val senderName = data["senderName"] ?: "Someone"
+                    val email = data["email"] ?: "No Email"
                     val battery = data["battery"] ?: "N/A"
+                    val deviceModel = data["deviceModel"] ?: "Unknown"
                     val lat = data["latitude"]?.toDoubleOrNull() ?: 0.0
                     val lon = data["longitude"]?.toDoubleOrNull() ?: 0.0
+                    val timestamp = data["timestamp"]?.toLongOrNull() ?: System.currentTimeMillis()
                     
                     NotificationHelper.showSOSNotification(
                         applicationContext,
                         senderName,
+                        email,
                         battery,
+                        deviceModel,
                         lat,
-                        lon
+                        lon,
+                        timestamp
                     )
                 } else {
                     val senderName = data["senderName"] ?: data["title"] ?: "New Message"

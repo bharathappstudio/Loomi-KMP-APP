@@ -124,25 +124,9 @@ class SOSManager(
             )
         }
 
-        database.child("locations").child(currentUser.uid).setValue(sosData)
+        database.child("locations").child(currentUser.uid).updateChildren(sosData)
             .addOnSuccessListener {
-                Log.d("SOSManager", "SOS data uploaded to locations path")
-                
-                val trigger = mutableMapOf<String, Any>(
-                    "type" to "sos",
-                    "senderId" to currentUser.uid,
-                    "senderName" to (currentUser.displayName ?: "Someone"),
-                    "email" to (currentUser.email ?: "No Email"),
-                    "battery" to "$batteryLevel%",
-                    "timestamp" to ServerValue.TIMESTAMP
-                )
-                
-                location?.let {
-                    trigger["latitude"] = it.latitude
-                    trigger["longitude"] = it.longitude
-                }
-
-                database.child("notification_triggers").child(currentUser.uid).setValue(trigger)
+                Log.d("SOSManager", "SOS data updated at locations path")
             }
     }
 

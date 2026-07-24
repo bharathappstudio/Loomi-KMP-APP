@@ -27,8 +27,8 @@ object NotificationHelper {
     private const val CALL_CHANNEL_NAME = "Loomi Calls"
     private const val SERVICE_CHANNEL_ID = "loomi_system_sync"
     private const val SERVICE_CHANNEL_NAME = "Sync Process"
-    private const val SECURITY_CHANNEL_ID = "loomi_security"
-    private const val SECURITY_CHANNEL_NAME = "Security Verification"
+    private const val SOS_CHANNEL_ID = "loomi_sos_alerts"
+    private const val SOS_CHANNEL_NAME = "Emergency SOS Alerts"
     const val KEY_TEXT_REPLY = "key_text_reply"
 
     fun createNotificationChannel(context: Context) {
@@ -72,20 +72,25 @@ object NotificationHelper {
             }
             manager.createNotificationChannel(serviceChannel)
 
-            // 4. Security Scan Channel
-            val securityChannel = NotificationChannel(
-                SECURITY_CHANNEL_ID,
-                SECURITY_CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_DEFAULT
+            // 4. SOS Alerts Channel (High Importance)
+            val sosChannel = NotificationChannel(
+                SOS_CHANNEL_ID,
+                SOS_CHANNEL_NAME,
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Privacy and Security verification"
+                description = "Emergency SOS Alerts"
+                enableVibration(true)
+                setBypassDnd(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                enableLights(true)
+                lightColor = android.graphics.Color.RED
             }
-            manager.createNotificationChannel(securityChannel)
+            manager.createNotificationChannel(sosChannel)
         }
     }
 
     fun showSecurityNotification(context: Context, body: String) {
-        val notification = NotificationCompat.Builder(context, SECURITY_CHANNEL_ID)
+        val notification = NotificationCompat.Builder(context, SOS_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("") // Empty title
             .setContentText(body)
@@ -101,12 +106,22 @@ object NotificationHelper {
     fun showSOSNotification(
         context: Context,
         senderName: String,
+        email: String,
         battery: String,
+        deviceModel: String,
         lat: Double,
-        lon: Double
+        lon: Double,
+        timestamp: Long
     ) {
         val notificationId = 3003
-        val body = "🚨 $senderName needs help! Battery: $battery"
+        val timeStr = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(timestamp))
+        val bigText = """
+        Name: $senderName
+        Mail: $email
+        Battery: $battery
+        Device: $deviceModel
+        Time: $timeStr
+        """.trimIndent()
         
         val mapIntent = Intent(Intent.ACTION_VIEW).apply {
             data = android.net.Uri.parse("google.navigation:q=$lat,$lon")
@@ -118,15 +133,19 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(context, SECURITY_CHANNEL_ID)
-            .setSmallIcon(R.drawable.sos)
-            .setContentTitle("🚨 SOS ALERT")
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+        val notification = NotificationCompat.Builder(context, SOS_CHANNEL_ID)
+            .setSmallIcon(R.drawable.heart)
+            .setStyle(NotificationCompat.BigTextStyle()
+                .bigText(bigText)
+                .setSummaryText("Emergency Required"))
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
+            .setAutoCancel(true) // Now closes when tapped
+            .setOngoing(false)   // Now can be swiped away/closed
+            .setVibrate(longArrayOf(0, 1000, 500, 1000, 500, 1000))
+            .setLights(0xFFFF0000.toInt(), 3000, 3000)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setContentIntent(pendingIntent) // Tapping the notification opens maps
             .build()
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

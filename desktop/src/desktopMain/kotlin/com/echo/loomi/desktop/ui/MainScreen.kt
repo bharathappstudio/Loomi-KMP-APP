@@ -123,10 +123,23 @@ fun MainScreen(
         val uid = FirebaseClient.currentUid ?: return@LaunchedEffect
         while (true) {
             // Check if user exists in DB before sending heartbeat to avoid creating "ghost" users
-            FirebaseClient.read("users/$uid/name") { nameJson ->
-                if (nameJson != null && nameJson != "null") {
-                    FirebaseClient.write("users/$uid/status", "Online")
-                    FirebaseClient.write("users/$uid/lastSeen", System.currentTimeMillis())
+            FirebaseClient.read("users/$uid") { userJson ->
+                if (userJson != null && userJson != "null") {
+                    try {
+                        val obj = com.google.gson.JsonParser.parseString(userJson).asJsonObject
+                        if (obj.has("name") && obj.has("imageName")) {
+                            FirebaseClient.write("users/$uid/status", "Online")
+                            FirebaseClient.write("users/$uid/lastSeen", System.currentTimeMillis())
+                        } else {
+                            // Ghost detected or incomplete, clean up and log out
+                            FirebaseClient.delete("users/$uid")
+                            onLogout()
+                        }
+                    } catch (e: Exception) {
+                        onLogout()
+                    }
+                } else {
+                    onLogout()
                 }
             }
             delay(20000) // Heartbeat every 20 seconds

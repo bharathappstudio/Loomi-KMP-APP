@@ -412,7 +412,16 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                                                 "Memoji/$selectedGender/Circle/$selectedImage"
                                             }
 
-                                            database.child("users").child(user.uid).child("imageName").setValue(imagePath)
+                                            val userUpdates = mutableMapOf<String, Any>(
+                                                "uid" to user.uid,
+                                                "name" to (user.displayName ?: "Anonymous"),
+                                                "email" to (user.email ?: ""),
+                                                "imageName" to imagePath,
+                                                "status" to "Online",
+                                                "lastSeen" to System.currentTimeMillis()
+                                            )
+
+                                            database.child("users").child(user.uid).updateChildren(userUpdates)
                                                 .addOnCompleteListener {
                                                     val prefs = context.getSharedPreferences("echo_prefs", android.content.Context.MODE_PRIVATE)
                                                     prefs.edit().putBoolean("profile_done", true).apply()

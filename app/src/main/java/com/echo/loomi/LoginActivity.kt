@@ -155,8 +155,8 @@ class LoginActivity : AppCompatActivity() {
         val user = FirebaseAuth.getInstance().currentUser ?: return
         val database = FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").reference
         
-        database.child("users").child(user.uid).child("imageName").get().addOnCompleteListener { task ->
-            if (task.isSuccessful && task.result.exists()) {
+        database.child("users").child(user.uid).get().addOnCompleteListener { task ->
+            if (task.isSuccessful && task.result.exists() && task.result.hasChild("name") && task.result.hasChild("imageName")) {
                 val prefs = getSharedPreferences("echo_prefs", MODE_PRIVATE)
                 prefs.edit().putBoolean("profile_done", true).apply()
                 navigateToMain()

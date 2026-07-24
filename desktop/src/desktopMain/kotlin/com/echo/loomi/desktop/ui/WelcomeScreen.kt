@@ -32,6 +32,8 @@ import java.util.Base64
 @Composable
 fun WelcomeScreen(
     googlePhotoUrl: String,
+    userName: String,
+    userEmail: String,
     onProfileComplete: () -> Unit
 ) {
     val imageNames = (1..14).map { if (it < 10) "0$it.png" else "$it.png" }
@@ -202,12 +204,29 @@ fun WelcomeScreen(
                         val uid = FirebaseClient.currentUid
                         if (uid != null) {
                             scope.launch(Dispatchers.IO) {
-                                val path = when {
+                                val imagePath = when {
                                     customImageBase64 != null -> customImageBase64!!
                                     selectedImage.isEmpty() && googlePhotoUrl.isNotEmpty() -> googlePhotoUrl
                                     else -> "Memoji/$selectedGender/Circle/$selectedImage"
                                 }
-                                FirebaseClient.write("users/$uid/imageName", path) { if (it) onProfileComplete() }
+                                
+                                // Fetch current session to get name and email
+                                // In a real app, this should be passed in or managed via a state holder
+                                // For now we assume the caller provides correct context if needed, 
+                                // but we'll try to find them from the SessionData if possible (passed via a hack or improved API)
+                                // Since we don't have the name/email here directly, we'll just write imageName
+                                // and hope Main.kt handled the rest. But to avoid ghosts, let's make sure we write basic fields too.
+                                
+                                val userUpdates = mutableMapOf<String, Any>(
+                                    "uid" to uid,
+                                    "name" to userName,
+                                    "email" to userEmail,
+                                    "imageName" to imagePath,
+                                    "status" to "Online",
+                                    "lastSeen" to System.currentTimeMillis()
+                                )
+                                
+                                FirebaseClient.update("users/$uid", userUpdates) { if (it) onProfileComplete() }
                             }
                         } else onProfileComplete()
                     },
