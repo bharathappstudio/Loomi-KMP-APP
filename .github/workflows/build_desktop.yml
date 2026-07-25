@@ -32,43 +32,35 @@ jobs:
       - name: Build Package
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
-            ./gradlew :desktop:packageMsi
+            ./gradlew :desktop:packageMsi :desktop:packageExe
           else
             ./gradlew :desktop:packageDmg
           fi
         shell: bash
 
-      - name: Prepare Windows Installer
+      - name: Prepare Windows Files
         if: matrix.os == 'windows-latest'
         run: |
-          Compress-Archive -Path "desktop/build/compose/binaries/main/msi/*.msi" -DestinationPath "Loomi-Windows-Installer.zip"
+          Compress-Archive -Path "desktop/build/compose/binaries/main/msi/*.msi", "desktop/build/compose/binaries/main/exe/*.exe" -DestinationPath "Loomi-Windows-Installers.zip"
         shell: pwsh
 
-      - name: Prepare macOS Installer
+      - name: Prepare macOS Files
         if: matrix.os == 'macos-latest'
         run: |
           zip -j Loomi-Mac-Installer.zip desktop/build/compose/binaries/main/dmg/*.dmg
         shell: bash
 
-      - name: Upload to Release (Windows)
-        if: matrix.os == 'windows-latest'
+      - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v1.0.${{ github.run_number }}"
           name: "Loomi v1.0.${{ github.run_number }}"
-          draft: true
-          files: Loomi-Windows-Installer.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload to Release (macOS)
-        if: matrix.os == 'macos-latest'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: "v1.0.${{ github.run_number }}"
-          name: "Loomi v1.0.${{ github.run_number }}"
-          draft: true
-          files: Loomi-Mac-Installer.zip
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: false
+          files: |
+            Loomi-Windows-Installers.zip
+            Loomi-Mac-Installer.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -105,7 +97,8 @@ jobs:
         with:
           tag_name: "v1.0.${{ github.run_number }}"
           name: "Loomi v1.0.${{ github.run_number }}"
-          draft: true
+          draft: false
+          prerelease: false
           files: Loomi-Android.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
