@@ -33,7 +33,7 @@ jobs:
       - name: Build Package
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
-            ./gradlew :desktop:packageMsi :desktop:packageExe --no-daemon
+            ./gradlew :desktop:packageMsi --no-daemon
           else
             ./gradlew :desktop:packageDmg --no-daemon
           fi
@@ -42,7 +42,7 @@ jobs:
       - name: Prepare Windows Files
         if: matrix.os == 'windows-latest'
         run: |
-          Compress-Archive -Path "desktop/build/compose/binaries/main/msi/*.msi", "desktop/build/compose/binaries/main/exe/*.exe" -DestinationPath "Loomi-Windows-Setup.zip"
+          Compress-Archive -Path "desktop/build/compose/binaries/main/msi/*.msi" -DestinationPath "Loomi-Windows-Setup.zip"
         shell: pwsh
 
       - name: Prepare macOS Files

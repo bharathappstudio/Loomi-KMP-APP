@@ -54,16 +54,21 @@ kotlin {
                 implementation("com.google.code.gson:gson:2.10.1")
                 implementation(libs.kotlinx.coroutines.swing)
                 
-                // JavaFX for WebView support - All platforms
+                // Optimized JavaFX: Only include the current OS libraries to save ~200MB
                 val javafxVersion = "21.0.2"
-                listOf("win", "mac", "mac-aarch64", "linux").forEach { os ->
-                    implementation("org.openjfx:javafx-base:$javafxVersion:$os")
-                    implementation("org.openjfx:javafx-graphics:$javafxVersion:$os")
-                    implementation("org.openjfx:javafx-controls:$javafxVersion:$os")
-                    implementation("org.openjfx:javafx-web:$javafxVersion:$os")
-                    implementation("org.openjfx:javafx-swing:$javafxVersion:$os")
-                    implementation("org.openjfx:javafx-media:$javafxVersion:$os")
+                val osName = System.getProperty("os.name").lowercase()
+                val targetOs = when {
+                    osName.contains("win") -> "win"
+                    osName.contains("mac") -> if (System.getProperty("os.arch") == "aarch64") "mac-aarch64" else "mac"
+                    else -> "linux"
                 }
+                
+                implementation("org.openjfx:javafx-base:$javafxVersion:$targetOs")
+                implementation("org.openjfx:javafx-graphics:$javafxVersion:$targetOs")
+                implementation("org.openjfx:javafx-controls:$javafxVersion:$targetOs")
+                implementation("org.openjfx:javafx-web:$javafxVersion:$targetOs")
+                implementation("org.openjfx:javafx-swing:$javafxVersion:$targetOs")
+                implementation("org.openjfx:javafx-media:$javafxVersion:$targetOs")
             }
         }
         
@@ -109,16 +114,13 @@ compose.desktop {
             )
         }
         nativeDistributions {
-            // Include all required modules for networking, SSL, and WebView
-            modules("java.desktop", "java.net.http", "jdk.httpserver", "jdk.crypto.ec", "jdk.unsupported", "java.sql", "java.xml", "java.naming", "java.management", "java.instrument", "jdk.jsobject", "java.scripting", "jdk.unsupported.desktop")
+            // Include only essential modules
+            modules("java.desktop", "java.net.http", "jdk.crypto.ec", "jdk.unsupported")
 
-            // Windows (.msi), macOS (.dmg), Linux (.deb)
+            // Windows (.msi), macOS (.dmg)
             targetFormats(
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg, 
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi, 
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe,
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb,
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Rpm
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi
             )
             packageName = "Loomi"
             packageVersion = "1.0.0"
@@ -127,6 +129,7 @@ compose.desktop {
             buildTypes.release.proguard {
                 isEnabled.set(true)
                 optimize.set(true)
+                configurationFiles.from(project.file("compose-desktop.pro"))
             }
             
             // Linux specific
