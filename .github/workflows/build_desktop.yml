@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build-desktop:
+  build-and-release-desktop:
     name: Build Desktop (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -39,29 +39,31 @@ jobs:
           fi
         shell: bash
 
-      - name: Zip Windows Files
+      - name: Prepare Files (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          $files = Get-ChildItem -Path "desktop/build/compose/binaries/main/msi/*.msi"
-          if ($files) {
-            Compress-Archive -Path $files.FullName -DestinationPath "Loomi-Windows-Installers.zip"
-          }
+          Compress-Archive -Path "desktop/build/compose/binaries/main/msi/*.msi" -DestinationPath "Loomi-Windows-Installer.zip"
         shell: pwsh
 
-      - name: Zip macOS Files
+      - name: Prepare Files (macOS)
         if: matrix.os == 'macos-latest'
         run: |
           zip -j Loomi-Mac-Installer.zip desktop/build/compose/binaries/main/dmg/*.dmg
         shell: bash
 
-      - name: Upload Temporary Artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload Directly to Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: build-${{ matrix.os }}
-          path: "*.zip"
-          retention-days: 1
+          tag_name: "v1.0.${{ github.run_number }}"
+          name: "Loomi v1.0.${{ github.run_number }}"
+          draft: false
+          files: |
+            Loomi-Windows-Installer.zip
+            Loomi-Mac-Installer.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-android:
+  build-and-release-android:
     name: Build Android
     runs-on: ubuntu-latest
     steps:
@@ -89,36 +91,12 @@ jobs:
       - name: Rename APK
         run: mv app/build/outputs/apk/debug/app-debug.apk Loomi-Android.apk
 
-      - name: Upload Temporary Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-android
-          path: Loomi-Android.apk
-          retention-days: 1
-
-  create-release:
-    name: Create Final Release
-    needs: [build-desktop, build-android]
-    if: always() # Try to release even if one job fails
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download All Build Files
-        uses: actions/download-artifact@v4
-        with:
-          path: release-files
-          merge-multiple: true
-
-      - name: Create GitHub Release
+      - name: Upload Directly to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v1.0.${{ github.run_number }}"
           name: "Loomi v1.0.${{ github.run_number }}"
-          body: "New build for Android, Windows, and macOS."
           draft: false
-          prerelease: false
-          files: |
-            release-files/Loomi-Windows-Installers.zip
-            release-files/Loomi-Mac-Installer.zip
-            release-files/Loomi-Android.apk
+          files: Loomi-Android.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
