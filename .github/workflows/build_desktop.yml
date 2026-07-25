@@ -33,33 +33,32 @@ jobs:
       - name: Build Package
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
-            ./gradlew :desktop:packageMsi --no-daemon
+            ./gradlew :desktop:packageMsi :desktop:packageExe --no-daemon
           else
             ./gradlew :desktop:packageDmg --no-daemon
           fi
         shell: bash
 
-      - name: Prepare Files (Windows)
+      - name: Prepare Windows Files
         if: matrix.os == 'windows-latest'
         run: |
-          Compress-Archive -Path "desktop/build/compose/binaries/main/msi/*.msi" -DestinationPath "Loomi-Windows-Installer.zip"
+          Compress-Archive -Path "desktop/build/compose/binaries/main/msi/*.msi", "desktop/build/compose/binaries/main/exe/*.exe" -DestinationPath "Loomi-Windows-Setup.zip"
         shell: pwsh
 
-      - name: Prepare Files (macOS)
+      - name: Prepare macOS Files
         if: matrix.os == 'macos-latest'
         run: |
           zip -j Loomi-Mac-Installer.zip desktop/build/compose/binaries/main/dmg/*.dmg
         shell: bash
 
-      - name: Upload Directly to Release
+      - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v1.0.${{ github.run_number }}"
           name: "Loomi v1.0.${{ github.run_number }}"
           draft: false
-          files: |
-            Loomi-Windows-Installer.zip
-            Loomi-Mac-Installer.zip
+          # This dynamic line fixes the "Pattern not matched" error
+          files: ${{ matrix.os == 'windows-latest' && 'Loomi-Windows-Setup.zip' || 'Loomi-Mac-Installer.zip' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -91,7 +90,7 @@ jobs:
       - name: Rename APK
         run: mv app/build/outputs/apk/debug/app-debug.apk Loomi-Android.apk
 
-      - name: Upload Directly to Release
+      - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v1.0.${{ github.run_number }}"
