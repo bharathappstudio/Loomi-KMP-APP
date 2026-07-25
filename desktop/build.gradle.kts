@@ -123,6 +123,12 @@ compose.desktop {
             packageName = "Loomi"
             packageVersion = "1.0.0"
             
+            // Enable ProGuard shrinking to reduce size
+            buildTypes.release.proguard {
+                isEnabled.set(true)
+                optimize.set(true)
+            }
+            
             // Linux specific
             linux {
                 shortcut = true

@@ -26,11 +26,16 @@ jobs:
         env:
           JAVA_HOME: ${{ env.JAVA_HOME_17_X64 }}
 
-      - name: Upload EXE
+      - name: Compress Windows Build
+        run: |
+          Compress-Archive -Path "desktop/build/compose/binaries/main/exe/*.exe" -DestinationPath "Loomi-Windows-Setup.zip"
+
+      - name: Upload Zip
         uses: actions/upload-artifact@v4
         with:
-          name: Loomi-Windows-Exe
-          path: desktop/build/compose/binaries/main/exe/*.exe
+          name: Loomi-Windows-ZIP
+          path: Loomi-Windows-Setup.zip
+          retention-days: 1
 
   build-macos:
     runs-on: macos-latest
@@ -50,8 +55,13 @@ jobs:
       - name: Build DMG
         run: ./gradlew :desktop:packageDmg
 
-      - name: Upload DMG
+      - name: Compress macOS Build
+        run: |
+          zip -j Loomi-Mac-Setup.zip desktop/build/compose/binaries/main/dmg/*.dmg
+
+      - name: Upload Zip
         uses: actions/upload-artifact@v4
         with:
-          name: Loomi-Mac-Dmg
-          path: desktop/build/compose/binaries/main/dmg/*.dmg
+          name: Loomi-Mac-ZIP
+          path: Loomi-Mac-Setup.zip
+          retention-days: 1
