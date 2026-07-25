@@ -6,8 +6,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -21,47 +26,35 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build EXE
-        run: ./gradlew :desktop:packageExe
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME_17_X64 }}
+      - name: Build Package
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            ./gradlew :desktop:packageExe
+          else
+            ./gradlew :desktop:packageDmg
+          fi
+        shell: bash
 
-      - name: Compress Windows Build
+      - name: Prepare Artifacts (Windows)
+        if: matrix.os == 'windows-latest'
         run: |
           Compress-Archive -Path "desktop/build/compose/binaries/main/exe/*.exe" -DestinationPath "Loomi-Windows-Setup.zip"
+        shell: pwsh
 
-      - name: Upload Zip
-        uses: actions/upload-artifact@v4
-        with:
-          name: Loomi-Windows-ZIP
-          path: Loomi-Windows-Setup.zip
-          retention-days: 1
-
-  build-macos:
-    runs-on: macos-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'zulu'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Build DMG
-        run: ./gradlew :desktop:packageDmg
-
-      - name: Compress macOS Build
+      - name: Prepare Artifacts (macOS)
+        if: matrix.os == 'macos-latest'
         run: |
           zip -j Loomi-Mac-Setup.zip desktop/build/compose/binaries/main/dmg/*.dmg
+        shell: bash
 
-      - name: Upload Zip
-        uses: actions/upload-artifact@v4
+      - name: Create Release and Upload
+        uses: softprops/action-gh-release@v2
         with:
-          name: Loomi-Mac-ZIP
-          path: Loomi-Mac-Setup.zip
-          retention-days: 1
+          tag_name: "v1.0.${{ github.run_number }}"
+          name: "Loomi Desktop v1.0.${{ github.run_number }}"
+          draft: true
+          files: |
+            Loomi-Windows-Setup.zip
+            Loomi-Mac-Setup.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
