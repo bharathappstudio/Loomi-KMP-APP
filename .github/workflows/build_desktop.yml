@@ -13,11 +13,10 @@ jobs:
     name: Build Desktop (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [windows-latest, macos-latest]
-    outputs:
-      release_tag: v1.0.${{ github.run_number }}
-
+    
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -34,16 +33,19 @@ jobs:
       - name: Build Package
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
-            ./gradlew :desktop:packageMsi :desktop:packageExe
+            ./gradlew :desktop:packageMsi --no-daemon
           else
-            ./gradlew :desktop:packageDmg
+            ./gradlew :desktop:packageDmg --no-daemon
           fi
         shell: bash
 
       - name: Zip Windows Files
         if: matrix.os == 'windows-latest'
         run: |
-          Compress-Archive -Path "desktop/build/compose/binaries/main/msi/*.msi", "desktop/build/compose/binaries/main/exe/*.exe" -DestinationPath "Loomi-Windows-Installers.zip"
+          $files = Get-ChildItem -Path "desktop/build/compose/binaries/main/msi/*.msi"
+          if ($files) {
+            Compress-Archive -Path $files.FullName -DestinationPath "Loomi-Windows-Installers.zip"
+          }
         shell: pwsh
 
       - name: Zip macOS Files
@@ -82,7 +84,7 @@ jobs:
           fi
 
       - name: Build Debug APK
-        run: ./gradlew :app:assembleDebug
+        run: ./gradlew :app:assembleDebug --no-daemon
 
       - name: Rename APK
         run: mv app/build/outputs/apk/debug/app-debug.apk Loomi-Android.apk
@@ -97,6 +99,7 @@ jobs:
   create-release:
     name: Create Final Release
     needs: [build-desktop, build-android]
+    if: always() # Try to release even if one job fails
     runs-on: ubuntu-latest
     steps:
       - name: Download All Build Files
