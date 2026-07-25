@@ -15,6 +15,8 @@ jobs:
     strategy:
       matrix:
         os: [windows-latest, macos-latest]
+    outputs:
+      release_tag: v1.0.${{ github.run_number }}
 
     steps:
       - name: Checkout Code
@@ -38,31 +40,24 @@ jobs:
           fi
         shell: bash
 
-      - name: Prepare Windows Files
+      - name: Zip Windows Files
         if: matrix.os == 'windows-latest'
         run: |
           Compress-Archive -Path "desktop/build/compose/binaries/main/msi/*.msi", "desktop/build/compose/binaries/main/exe/*.exe" -DestinationPath "Loomi-Windows-Installers.zip"
         shell: pwsh
 
-      - name: Prepare macOS Files
+      - name: Zip macOS Files
         if: matrix.os == 'macos-latest'
         run: |
           zip -j Loomi-Mac-Installer.zip desktop/build/compose/binaries/main/dmg/*.dmg
         shell: bash
 
-      - name: Upload to Release
-        uses: softprops/action-gh-release@v2
+      - name: Upload Temporary Artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: "v1.0.${{ github.run_number }}"
-          name: "Loomi v1.0.${{ github.run_number }}"
-          draft: false
-          prerelease: false
-          fail_on_unmatched_files: false
-          files: |
-            Loomi-Windows-Installers.zip
-            Loomi-Mac-Installer.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: build-${{ matrix.os }}
+          path: "*.zip"
+          retention-days: 1
 
   build-android:
     name: Build Android
@@ -92,13 +87,35 @@ jobs:
       - name: Rename APK
         run: mv app/build/outputs/apk/debug/app-debug.apk Loomi-Android.apk
 
-      - name: Upload to Release
+      - name: Upload Temporary Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-android
+          path: Loomi-Android.apk
+          retention-days: 1
+
+  create-release:
+    name: Create Final Release
+    needs: [build-desktop, build-android]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download All Build Files
+        uses: actions/download-artifact@v4
+        with:
+          path: release-files
+          merge-multiple: true
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v1.0.${{ github.run_number }}"
           name: "Loomi v1.0.${{ github.run_number }}"
+          body: "New build for Android, Windows, and macOS."
           draft: false
           prerelease: false
-          files: Loomi-Android.apk
+          files: |
+            release-files/Loomi-Windows-Installers.zip
+            release-files/Loomi-Mac-Installer.zip
+            release-files/Loomi-Android.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
