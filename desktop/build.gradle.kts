@@ -117,10 +117,11 @@ compose.desktop {
             // Include only essential modules
             modules("java.desktop", "java.net.http", "jdk.crypto.ec", "jdk.unsupported")
 
-            // Windows (.msi), macOS (.dmg)
+            // Windows (.msi, .exe), macOS (.dmg)
             targetFormats(
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg, 
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe
             )
             packageName = "Loomi"
             packageVersion = "1.0.0"

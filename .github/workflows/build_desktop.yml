@@ -33,7 +33,7 @@ jobs:
       - name: Build Package
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
-            ./gradlew :desktop:packageMsi --no-daemon
+            ./gradlew :desktop:packageExe --no-daemon
           else
             ./gradlew :desktop:packageDmg --no-daemon
           fi
@@ -42,8 +42,8 @@ jobs:
       - name: Prepare Windows Files
         if: matrix.os == 'windows-latest'
         run: |
-          Compress-Archive -Path "desktop/build/compose/binaries/main/msi/*.msi" -DestinationPath "Loomi-Windows-Setup.zip"
-        shell: pwsh
+          mv desktop/build/compose/binaries/main/exe/*.exe Loomi-Windows-Setup.exe
+        shell: bash
 
       - name: Prepare macOS Files
         if: matrix.os == 'macos-latest'
@@ -57,8 +57,7 @@ jobs:
           tag_name: "v1.0.${{ github.run_number }}"
           name: "Loomi v1.0.${{ github.run_number }}"
           draft: false
-          # This dynamic line fixes the "Pattern not matched" error
-          files: ${{ matrix.os == 'windows-latest' && 'Loomi-Windows-Setup.zip' || 'Loomi-Mac-Installer.zip' }}
+          files: ${{ matrix.os == 'windows-latest' && 'Loomi-Windows-Setup.exe' || 'Loomi-Mac-Installer.zip' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
