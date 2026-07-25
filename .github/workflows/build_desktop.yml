@@ -6,11 +6,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # Important: Gives permission to create releases
+  contents: write
 
 jobs:
   build:
-    name: Build and Release
+    name: Build for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -38,24 +38,25 @@ jobs:
           fi
         shell: bash
 
-      - name: Prepare Files (Windows)
+      - name: Prepare Windows ZIP
         if: matrix.os == 'windows-latest'
         run: |
           Compress-Archive -Path "desktop/build/compose/binaries/main/exe/*.exe" -DestinationPath "Loomi-Windows-Setup.zip"
         shell: pwsh
 
-      - name: Prepare Files (macOS)
+      - name: Prepare macOS ZIP
         if: matrix.os == 'macos-latest'
         run: |
           zip -j Loomi-Mac-Setup.zip desktop/build/compose/binaries/main/dmg/*.dmg
         shell: bash
 
-      - name: Upload Directly to Release
+      - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v1.0.${{ github.run_number }}"
           name: "Loomi Desktop v1.0.${{ github.run_number }}"
           draft: true
+          fail_on_unmatched_files: false
           files: |
             Loomi-Windows-Setup.zip
             Loomi-Mac-Setup.zip
