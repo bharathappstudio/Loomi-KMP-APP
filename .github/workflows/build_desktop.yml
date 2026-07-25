@@ -6,11 +6,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # Required to create releases
+  contents: write # Important: Gives permission to create releases
 
 jobs:
   build:
-    name: Build for ${{ matrix.os }}
+    name: Build and Release
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -38,45 +38,26 @@ jobs:
           fi
         shell: bash
 
-      - name: Prepare Artifacts (Windows)
+      - name: Prepare Files (Windows)
         if: matrix.os == 'windows-latest'
         run: |
           Compress-Archive -Path "desktop/build/compose/binaries/main/exe/*.exe" -DestinationPath "Loomi-Windows-Setup.zip"
         shell: pwsh
 
-      - name: Prepare Artifacts (macOS)
+      - name: Prepare Files (macOS)
         if: matrix.os == 'macos-latest'
         run: |
           zip -j Loomi-Mac-Setup.zip desktop/build/compose/binaries/main/dmg/*.dmg
         shell: bash
 
-      - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: Loomi-${{ matrix.os }}
-          path: |
-            Loomi-Windows-Setup.zip
-            Loomi-Mac-Setup.zip
-          retention-days: 1
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download All Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: builds
-          merge-multiple: true
-
-      - name: Create Release
+      - name: Upload Directly to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v1.0.${{ github.run_number }}"
           name: "Loomi Desktop v1.0.${{ github.run_number }}"
           draft: true
           files: |
-            builds/Loomi-Windows-Setup.zip
-            builds/Loomi-Mac-Setup.zip
+            Loomi-Windows-Setup.zip
+            Loomi-Mac-Setup.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
