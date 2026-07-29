@@ -54,6 +54,9 @@ import com.echo.loomi.ui.theme.LoomiTheme
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import kotlinx.coroutines.delay
+import android.provider.ContactsContract
+import android.net.Uri
+import android.util.Log
 
 class LoginActivity : AppCompatActivity() {
 
@@ -71,7 +74,7 @@ class LoginActivity : AppCompatActivity() {
         if (allGranted) {
             startGoogleSignIn()
         } else {
-            errorMessage.value = "All permissions required"
+            errorMessage.value = "Required permissions not granted"
             isLoading.value = false
         }
     }
@@ -89,7 +92,7 @@ class LoginActivity : AppCompatActivity() {
                 checkProfileAndNavigate()
             } else {
                 isLoading.value = false
-                errorMessage.value = "Please try again."
+                errorMessage.value = "Google login failed"
             }
         }
 
@@ -108,8 +111,10 @@ class LoginActivity : AppCompatActivity() {
                         if (isPhoneMode.value) {
                             if (isOtpSent.value) {
                                 isOtpSent.value = false
+                                errorMessage.value = ""
                             } else {
                                 isPhoneMode.value = false
+                                errorMessage.value = ""
                             }
                         } else {
                             isLoading.value = false
@@ -123,7 +128,8 @@ class LoginActivity : AppCompatActivity() {
     private fun handleLoginTap() {
         val permissions = mutableListOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.READ_CONTACTS
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
@@ -148,7 +154,7 @@ class LoginActivity : AppCompatActivity() {
         if (!pm.isIgnoringBatteryOptimizations(packageName)) {
             AlertDialog.Builder(this)
                 .setTitle("Background Reliability")
-                .setMessage("To receive messages and calls instantly, please allow Loomi to run in the background. Select 'Allow' in the next screen.")
+                .setMessage("Allow Loomi to run in background for instant updates?")
                 .setPositiveButton("Configure") { _, _ ->
                     try {
                         val intent = Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
@@ -174,28 +180,39 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun sendVerificationCode(phoneNumber: String) {
+        if (isLoading.value) return
         isLoading.value = true
+        errorMessage.value = ""
+        
+        Log.d("SMS_FLOW", "Requesting real SMS for: $phoneNumber")
+        
         val options = PhoneAuthOptions.newBuilder(FirebaseAuth.getInstance())
             .setPhoneNumber(phoneNumber)
             .setTimeout(60L, TimeUnit.SECONDS)
             .setActivity(this)
             .setCallbacks(object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
                 override fun onVerificationCompleted(credential: PhoneAuthCredential) {
+                    // 100% Work Logic: This will trigger if Google Play Integrity verifies the app
+                    Log.d("SMS_FLOW", "Auto-verification successful")
                     signInWithPhone(credential)
                 }
 
                 override fun onVerificationFailed(e: FirebaseException) {
                     isLoading.value = false
-                    errorMessage.value = e.message ?: "Verification failed"
+                    errorMessage.value = e.localizedMessage ?: "Verification failed"
+                    Log.e("SMS_FLOW", "Verification Failed: ${e.message}", e)
                 }
 
                 override fun onCodeSent(id: String, token: PhoneAuthProvider.ForceResendingToken) {
                     isLoading.value = false
                     verificationId = id
                     isOtpSent.value = true
+                    Log.d("SMS_FLOW", "Real SMS Sent successfully. Verification ID: $id")
                 }
             })
             .build()
+        
+        // Standard Firebase Auth verification
         PhoneAuthProvider.verifyPhoneNumber(options)
     }
 
@@ -210,22 +227,55 @@ class LoginActivity : AppCompatActivity() {
         FirebaseAuth.getInstance().signInWithCredential(credential)
             .addOnCompleteListener(this) { task ->
                 if (task.isSuccessful) {
-                    savePhoneUserToDatabase()
+                    checkAndSaveUser()
                 } else {
                     isLoading.value = false
-                    errorMessage.value = task.exception?.message ?: "Login failed"
+                    errorMessage.value = task.exception?.localizedMessage ?: "Login failed"
                 }
             }
+    }
+
+    private fun checkAndSaveUser() {
+        val user = FirebaseAuth.getInstance().currentUser ?: return
+        val database = FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").reference
+        
+        // 100% Work Logic: Preserves existing app user name
+        database.child("users").child(user.uid).get().addOnSuccessListener { snapshot ->
+            if (snapshot.exists() && snapshot.hasChild("name")) {
+                checkProfileAndNavigate()
+            } else {
+                savePhoneUserToDatabase()
+            }
+        }.addOnFailureListener {
+            savePhoneUserToDatabase()
+        }
+    }
+
+    private fun getContactName(phoneNumber: String): String {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            return "New User"
+        }
+        return try {
+            val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(phoneNumber))
+            contentResolver.query(uri, arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else "New User"
+            } ?: "New User"
+        } catch (e: Exception) {
+            "New User"
+        }
     }
 
     private fun savePhoneUserToDatabase() {
         val user = FirebaseAuth.getInstance().currentUser ?: return
         val database = FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").reference
         
+        val phoneNumber = user.phoneNumber ?: ""
+        val nameFromContacts = getContactName(phoneNumber)
+
         val userUpdates = mapOf(
             "uid" to user.uid,
-            "name" to "New User",
-            "phoneNumber" to (user.phoneNumber ?: ""),
+            "name" to nameFromContacts,
+            "phoneNumber" to phoneNumber,
             "status" to "Online",
             "loginType" to "phone",
             "lastSeen" to System.currentTimeMillis()
@@ -237,7 +287,7 @@ class LoginActivity : AppCompatActivity() {
                     checkProfileAndNavigate()
                 } else {
                     isLoading.value = false
-                    errorMessage.value = task.exception?.message ?: "Database update failed"
+                    errorMessage.value = "Database update error"
                 }
             }
     }
@@ -248,8 +298,7 @@ class LoginActivity : AppCompatActivity() {
         
         database.child("users").child(user.uid).get().addOnCompleteListener { task ->
             if (task.isSuccessful && task.result.exists() && task.result.hasChild("name") && task.result.hasChild("imageName")) {
-                val prefs = getSharedPreferences("echo_prefs", MODE_PRIVATE)
-                prefs.edit().putBoolean("profile_done", true).apply()
+                getSharedPreferences("echo_prefs", MODE_PRIVATE).edit().putBoolean("profile_done", true).apply()
                 navigateToMain()
             } else {
                 navigateToWelcome()
@@ -258,16 +307,16 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun navigateToWelcome() {
-        val intent = Intent(this, WelcomeActivity::class.java)
-        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        startActivity(intent)
+        startActivity(Intent(this, WelcomeActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        })
         finish()
     }
 
     private fun navigateToMain() {
-        val intent = Intent(this, MainActivity::class.java)
-        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        startActivity(intent)
+        startActivity(Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        })
         finish()
     }
 }
@@ -317,7 +366,6 @@ fun BlackLoginUI(
 
     val focusRequester = remember { FocusRequester() }
 
-    // Auto-trigger logic
     LaunchedEffect(rawNumber) {
         if (rawNumber.length == 10 && !isOtpSent && !loading) {
             onSendOtp(fullNumber)
@@ -329,10 +377,9 @@ fun BlackLoginUI(
         }
     }
 
-    // Auto-show keyboard
     LaunchedEffect(isPhoneMode) {
         if (isPhoneMode) {
-            delay(300) // Wait for transition
+            delay(300)
             focusRequester.requestFocus()
         }
     }
@@ -382,8 +429,10 @@ fun BlackLoginUI(
                 } else if (isPhoneMode) {
                     // Nothing Style Minimal Header
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 10.dp)
+                            .navigationBarsPadding()
                     ) {
                     }
                     
@@ -395,8 +444,8 @@ fun BlackLoginUI(
                             value = rawNumber,
                             onValueChange = { if (it.length <= 10) rawNumber = it },
                             modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
-                            label = { Text("MOBILE NUMBER", style = androidx.compose.ui.text.TextStyle(fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)) },
-                            prefix = { Text("+91 ", color = contentColor, fontWeight = FontWeight.Bold) },
+                            label = { Text("MOBILE NUMBER", style = androidx.compose.ui.text.TextStyle(fontWeight = FontWeight.Light, fontFamily = FontFamily.Monospace)) },
+                            prefix = { Text("+91 ", color = contentColor, fontWeight = FontWeight.Light) },
                             shape = RoundedCornerShape(8.dp),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Send),
                             keyboardActions = KeyboardActions(onSend = { if (rawNumber.length == 10) onSendOtp(fullNumber) }),
@@ -417,8 +466,8 @@ fun BlackLoginUI(
                             value = otp,
                             onValueChange = { if (it.length <= 6) otp = it },
                             modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
-                            label = { Text("VERIFICATION CODE", style = androidx.compose.ui.text.TextStyle(fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)) },
-                            placeholder = { Text("000000", color = if (isDark) Color.DarkGray else Color.LightGray) },
+                            label = { Text("VERIFICATION CODE", style = androidx.compose.ui.text.TextStyle(fontWeight = FontWeight.Light, fontFamily = FontFamily.Monospace)) },
+                            placeholder = { Text("", color = if (isDark) Color.DarkGray else Color.LightGray) },
                             shape = RoundedCornerShape(8.dp),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(onDone = { if (otp.length == 6) onVerifyOtp(otp) }),
@@ -510,13 +559,13 @@ fun BlackLoginUI(
                         Icon(
                             painter = painterResource(id = R.drawable.call),
                             contentDescription = null,
-                            modifier = Modifier.size(10.dp),
+                            modifier = Modifier.size(15.dp),
                             tint = if (isDark) Color.White.copy(0.6f) else Color.Black
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Developer Login",
-                            fontSize = 10.sp,
+                            fontSize = 12.sp,
                             color = if (isDark) Color.White.copy(0.6f) else Color.Black,
                             fontFamily = FontFamily.Monospace
                         )
