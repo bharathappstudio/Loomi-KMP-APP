@@ -1207,7 +1207,8 @@ fun StoryBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(),
         containerColor = Color(0xFFFFF6DE),
-        scrimColor = Color.Transparent
+        scrimColor = Color.Transparent,
+        dragHandle = null
     ) {
         Column(
             modifier = Modifier
