@@ -78,14 +78,14 @@ class WelcomeActivity : ComponentActivity() {
 
 fun getAvatarImageUrl(gender: String): String {
     val prompt = if (gender == "Male") {
-        "boy Friday Illustrations style vector avatar of Sora, happy expression, high-contrast black and white, stylish bold outlines, dynamic modern digital art, clean solid background, high detail, 4k resolution"
+        "A modern flat vector illustration of a young man's user profile avatar, contemporary 2026 design trend, soft organic shapes, subtle duotone gradient background, minimalist geometric face with clean bold outlines, trendy muted pastel color palette, abstract simplified hairstyle, matte flat colors with soft depth, circular avatar frame, modern SaaS app icon style, Notion-style character illustration, vector art, ultra high resolution, 8k quality, crisp clean lines, sharp detail, professional studio quality, no photorealism, no heavy shading"
     } else {
-        "girl Friday Illustrations style vector avatar of Asuna, happy expression, high-contrast black and white, stylish bold outlines, dynamic modern digital art, clean solid background, high detail, 4k resolution"
+        "A modern flat vector illustration of a young woman's user profile avatar, contemporary 2026 design trend, soft organic shapes, subtle duotone gradient background, minimalist geometric face with clean bold outlines, trendy muted pastel color palette, abstract simplified hairstyle, matte flat colors with soft depth, circular avatar frame, modern SaaS app icon style, Notion-style character illustration, vector art, ultra high resolution, 8k quality, crisp clean lines, sharp detail, professional studio quality, no photorealism, no heavy shading"
     }
     val encodedPrompt = java.net.URLEncoder.encode(prompt, "UTF-8")
     val seed = Random.nextInt(1000000)
-    // Using model=turbo for faster generation and high quality illustration
-    return "https://image.pollinations.ai/prompt/$encodedPrompt?width=512&height=512&nologo=true&seed=$seed&model=turbo"
+    // Using model=flux for the highest quality and best prompt adherence
+    return "https://image.pollinations.ai/prompt/$encodedPrompt?width=1024&height=1024&nologo=true&seed=$seed&model=flux"
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -161,7 +161,7 @@ fun WelcomeScreen(onFinish: () -> Unit) {
             val window = (context as androidx.activity.ComponentActivity).window
             val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, view)
             insetsController.isAppearanceLightStatusBars = !isDark
-            insetsController.isAppearanceLightNavigationBars = !isDark
+            insetsController.isAppearanceLightNavigationBars = true // Bottom sheet is always light (Orange/White)
         }
     }
 
@@ -245,7 +245,7 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(topStart = 34.dp, topEnd = 34.dp))
-                    .background(MaterialTheme.colorScheme.surface)
+                    .background(if (isSystemInDarkTheme()) Color(0xFFC8E6C9) else Color.White)
                     .navigationBarsPadding()
                     .padding(horizontal = 24.dp, vertical = 26.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -256,14 +256,18 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Google Profile First
+                    val isGoogleSelected = customImageUri?.toString()?.contains("google") == true
                     Box(
                         modifier = Modifier
                             .size(56.dp)
                             .clip(CircleShape)
-                            .background(if (isSystemInDarkTheme()) Color.White.copy(0.1f) else Color(0xFFF5F5F5))
+                            .background(
+                                if (isGoogleSelected) Color.Black 
+                                else if (isSystemInDarkTheme()) Color.White else Color(0xFFF5F5F5)
+                            )
                             .border(
-                                width = if (customImageUri?.toString()?.contains("google") == true) 2.dp else 1.dp,
-                                color = if (customImageUri?.toString()?.contains("google") == true) (if (isSystemInDarkTheme()) Color.White else Color.Black) else Color.LightGray.copy(0.3f),
+                                width = if (isGoogleSelected) 2.dp else 1.dp,
+                                color = if (isGoogleSelected) (if (isSystemInDarkTheme()) Color.White else Color.Black) else Color.LightGray.copy(0.3f),
                                 shape = CircleShape
                             )
                             .clickable {
@@ -287,20 +291,29 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                     Spacer(modifier = Modifier.width(24.dp))
 
                     // Gallery Second
+                    val isGallerySelected = customImageUri != null && customImageUri?.toString()?.contains("google") == false
                     Box(
                         modifier = Modifier
                             .size(56.dp)
                             .clip(CircleShape)
-                            .background(if (isSystemInDarkTheme()) Color.White.copy(0.1f) else Color(0xFFF5F5F5))
+                            .background(
+                                if (isGallerySelected) Color.Black 
+                                else if (isSystemInDarkTheme()) Color.White else Color(0xFFF5F5F5)
+                            )
                             .border(
-                                width = if (customImageUri != null && customImageUri?.toString()?.contains("google") == false) 2.dp else 1.dp,
-                                color = if (customImageUri != null && customImageUri?.toString()?.contains("google") == false) (if (isSystemInDarkTheme()) Color.White else Color.Black) else Color.LightGray.copy(0.3f),
+                                width = if (isGallerySelected) 2.dp else 1.dp,
+                                color = if (isGallerySelected) (if (isSystemInDarkTheme()) Color.White else Color.Black) else Color.LightGray.copy(0.3f),
                                 shape = CircleShape
                             )
                             .clickable { galleryLauncher.launch("image/*") },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(painterResource(R.drawable.image), null, modifier = Modifier.size(24.dp), tint = if (isSystemInDarkTheme()) Color.White else Color.Black)
+                        Icon(
+                            painterResource(R.drawable.image), 
+                            null, 
+                            modifier = Modifier.size(24.dp), 
+                            tint = if (isGallerySelected) Color.White else Color.Black
+                        )
                     }
                 }
 
@@ -315,7 +328,10 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                                 .weight(1f)
                                 .height(48.dp)
                                 .clip(RoundedCornerShape(24.dp))
-                                .background(if (isSelected) (if (isSystemInDarkTheme()) Color.White else Color.Black) else (if (isSystemInDarkTheme()) Color.White.copy(0.1f) else Color(0xFFF5F5F5)))
+                                .background(
+                                    if (isSelected) Color.Black 
+                                    else if (isSystemInDarkTheme()) Color.White else Color(0xFFF5F5F5)
+                                )
                                 .clickable {
                                     isProfileLoading = true
                                     selectedGender = gender
@@ -326,7 +342,7 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                         ) {
                             Text(
                                 text = gender,
-                                color = if (isSelected) (if (isSystemInDarkTheme()) Color.Black else Color.White) else (if (isSystemInDarkTheme()) Color.White else Color.Black),
+                                color = if (isSelected) Color.White else Color.Black,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 15.sp
                             )
@@ -444,9 +460,9 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "Let's Go!",
+                            text = "NEXT",
                             fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.W400,
                             color = if (isSystemInDarkTheme()) Color.Black else Color.White
                         )
                     }
