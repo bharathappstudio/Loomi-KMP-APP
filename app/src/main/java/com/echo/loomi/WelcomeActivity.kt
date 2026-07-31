@@ -6,7 +6,6 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.MediaStore
 import android.util.Base64
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -16,14 +15,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -43,8 +39,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 import com.echo.loomi.ui.theme.LoomiTheme
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
@@ -52,6 +51,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
+import kotlin.random.Random
 
 class WelcomeActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,27 +76,57 @@ class WelcomeActivity : ComponentActivity() {
     }
 }
 
+fun getAvatarImageUrl(gender: String): String {
+    val prompt = if (gender == "Male") {
+        "boy Friday Illustrations style vector avatar of Sora, happy expression, high-contrast black and white, stylish bold outlines, dynamic modern digital art, clean solid background, high detail, 4k resolution"
+    } else {
+        "girl Friday Illustrations style vector avatar of Asuna, happy expression, high-contrast black and white, stylish bold outlines, dynamic modern digital art, clean solid background, high detail, 4k resolution"
+    }
+    val encodedPrompt = java.net.URLEncoder.encode(prompt, "UTF-8")
+    val seed = Random.nextInt(1000000)
+    // Using model=turbo for faster generation and high quality illustration
+    return "https://image.pollinations.ai/prompt/$encodedPrompt?width=512&height=512&nologo=true&seed=$seed&model=turbo"
+}
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun WelcomeScreen(onFinish: () -> Unit) {
-    val imageNames = (1..14).map { if (it < 10) "0$it.png" else "$it.png" }
-    var selectedGender by remember { mutableStateOf("Male") }
-    var selectedImage by remember { mutableStateOf(imageNames[0]) }
-    var customImageUri by remember { mutableStateOf<Uri?>(null) }
+    val auth = FirebaseAuth.getInstance()
+    val currentUser = auth.currentUser
+
+    var selectedGender by remember { mutableStateOf<String?>(null) }
+    var imageUrl by remember { mutableStateOf<String?>(null) }
+    var customImageUri by remember {
+        mutableStateOf<Uri?>(currentUser?.photoUrl?.let {
+            Uri.parse(it.toString().replace("s96-c", "s4000"))
+        })
+    }
     var isLoading by remember { mutableStateOf(false) }
     var isProfileLoading by remember { mutableStateOf(false) }
 
-    val auth = FirebaseAuth.getInstance()
     val database = FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").reference
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    // Custom ImageLoader with longer timeouts to fix AI generation timeouts
+    val imageLoader = remember {
+        ImageLoader.Builder(context)
+            .okHttpClient {
+                OkHttpClient.Builder()
+                    .connectTimeout(60, TimeUnit.SECONDS)
+                    .readTimeout(60, TimeUnit.SECONDS)
+                    .build()
+            }
+            .build()
+    }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
             customImageUri = uri
-            selectedImage = "" // Clear memoji selection
+            imageUrl = null
+            selectedGender = null
         }
     }
 
@@ -107,8 +139,8 @@ fun WelcomeScreen(onFinish: () -> Unit) {
     var colorIndex2 by remember { mutableIntStateOf(1) }
     var colorIndex3 by remember { mutableIntStateOf(2) }
 
-    LaunchedEffect(isLoading) {
-        if (isLoading) {
+    LaunchedEffect(isLoading || isProfileLoading) {
+        if (isLoading || isProfileLoading) {
             while (true) {
                 delay(700)
                 colorIndex1 = (colorIndex1 + 1) % googleColors.size
@@ -123,7 +155,6 @@ fun WelcomeScreen(onFinish: () -> Unit) {
     val c3 by animateColorAsState(googleColors[colorIndex3], tween(600), label = "c3")
 
     val isDark = isSystemInDarkTheme()
-    // --- Dynamic System Bars Support ---
     val view = androidx.compose.ui.platform.LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -143,7 +174,6 @@ fun WelcomeScreen(onFinish: () -> Unit) {
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top Section: Selection Preview
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -161,44 +191,56 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                             .border(4.dp, if (isSystemInDarkTheme()) Color.White.copy(0.2f) else Color.White, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (isProfileLoading) {
-                            LoadingIndicator(
-                                modifier = Modifier
-                                    .size(60.dp)
-                                    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-                                    .drawWithContent {
-                                        drawContent()
-                                        drawRect(
-                                            brush = Brush.linearGradient(listOf(c1, c2, c3)),
-                                            blendMode = BlendMode.SrcAtop
-                                        )
-                                    },
-                                color = Color.White
-                            )
-                        } else {
-                            val model = if (customImageUri != null) {
-                                customImageUri
-                            } else {
-                                "file:///android_asset/Memoji/$selectedGender/Circle/$selectedImage"
+                        val model: Any = customImageUri ?: imageUrl ?: R.drawable.image
+                        
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(model)
+                                .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+                                .crossfade(true)
+                                .build(),
+                            imageLoader = imageLoader,
+                            contentDescription = "Selected Profile",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(10.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop,
+                            onLoading = { isProfileLoading = true },
+                            onSuccess = { isProfileLoading = false },
+                            onError = { result -> 
+                                isProfileLoading = false
+                                val errorMsg = result.result.throwable.message ?: "Unknown error"
+                                android.util.Log.e("WelcomeActivity", "Image load failed for model: $model, Error: $errorMsg")
                             }
-                            AsyncImage(
-                                model = ImageRequest.Builder(context)
-                                    .data(model)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = "Selected Profile",
+                        )
+
+                        if (isProfileLoading) {
+                            Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(10.dp)
-                                    .clip(CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
+                                    .background(if (isSystemInDarkTheme()) Color.Black.copy(0.3f) else Color.White.copy(0.3f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                LoadingIndicator(
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                                        .drawWithContent {
+                                            drawContent()
+                                            drawRect(
+                                                brush = Brush.linearGradient(listOf(c1, c2, c3)),
+                                                blendMode = BlendMode.SrcAtop
+                                            )
+                                        },
+                                    color = Color.White
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            // Bottom Section: Selection List
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -208,30 +250,12 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                     .padding(horizontal = 24.dp, vertical = 26.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-
-                // Top 2 Round Buttons: Gallery and Google
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 1. Gallery Button
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(if (isSystemInDarkTheme()) Color.White.copy(0.1f) else Color(0xFFF5F5F5))
-                            .border(1.dp, Color.LightGray.copy(0.3f), CircleShape)
-                            .clickable { galleryLauncher.launch("image/*") },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(painterResource(R.drawable.image), null, modifier = Modifier.size(24.dp), tint = if (isSystemInDarkTheme()) Color.White else Color.Black)
-                    }
-
-                    Spacer(modifier = Modifier.width(24.dp))
-
-                    // 2. Google Profile Button
-                    val currentUser = auth.currentUser
+                    // Google Profile First
                     Box(
                         modifier = Modifier
                             .size(56.dp)
@@ -244,9 +268,10 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                             )
                             .clickable {
                                 currentUser?.photoUrl?.let {
-                                    val highResUrl = it.toString().replace("s96-c", "s4000") // HD Quality fix
+                                    val highResUrl = it.toString().replace("s96-c", "s4000")
                                     customImageUri = Uri.parse(highResUrl)
-                                    selectedImage = ""
+                                    imageUrl = null
+                                    selectedGender = null
                                 }
                             },
                         contentAlignment = Alignment.Center
@@ -258,9 +283,27 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                             contentScale = ContentScale.Crop
                         )
                     }
+
+                    Spacer(modifier = Modifier.width(24.dp))
+
+                    // Gallery Second
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(if (isSystemInDarkTheme()) Color.White.copy(0.1f) else Color(0xFFF5F5F5))
+                            .border(
+                                width = if (customImageUri != null && customImageUri?.toString()?.contains("google") == false) 2.dp else 1.dp,
+                                color = if (customImageUri != null && customImageUri?.toString()?.contains("google") == false) (if (isSystemInDarkTheme()) Color.White else Color.Black) else Color.LightGray.copy(0.3f),
+                                shape = CircleShape
+                            )
+                            .clickable { galleryLauncher.launch("image/*") },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(painterResource(R.drawable.image), null, modifier = Modifier.size(24.dp), tint = if (isSystemInDarkTheme()) Color.White else Color.Black)
+                    }
                 }
 
-                // Gender Filter Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -274,16 +317,10 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                                 .clip(RoundedCornerShape(24.dp))
                                 .background(if (isSelected) (if (isSystemInDarkTheme()) Color.White else Color.Black) else (if (isSystemInDarkTheme()) Color.White.copy(0.1f) else Color(0xFFF5F5F5)))
                                 .clickable {
-                                    if (selectedGender != gender) {
-                                        scope.launch {
-                                            isProfileLoading = true
-                                            selectedGender = gender
-                                            customImageUri = null // Reset custom if changing gender/memoji
-                                            if (selectedImage == "") selectedImage = imageNames[0]
-                                            delay(200)
-                                            isProfileLoading = false
-                                        }
-                                    }
+                                    isProfileLoading = true
+                                    selectedGender = gender
+                                    customImageUri = null
+                                    imageUrl = getAvatarImageUrl(gender)
                                 },
                             contentAlignment = Alignment.Center
                         ) {
@@ -297,52 +334,14 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
-
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    items(imageNames) { imageName ->
-                        val isSelected = selectedImage == imageName
-                        Box(
-                            modifier = Modifier
-                                .size(70.dp)
-                                .clip(CircleShape)
-                                .border(
-                                    width = if (isSelected) 3.dp else 1.dp,
-                                    color = if (isSelected) (if (isSystemInDarkTheme()) Color.White else Color.Black) else Color.LightGray.copy(alpha = 0.5f),
-                                    shape = CircleShape
-                                )
-                                .clickable {
-                                    if (selectedImage != imageName) {
-                                        scope.launch {
-                                            isProfileLoading = true
-                                            selectedImage = imageName
-                                            customImageUri = null // Reset custom if picking memoji
-                                            delay(1000)
-                                            isProfileLoading = false
-                                        }
-                                    }
-                                }
-                        ) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(context)
-                                    .data("file:///android_asset/Memoji/$selectedGender/Circle/$imageName")
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(4.dp)
-                                    .clip(CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-                        }
-                    }
-                }
-
                 Spacer(modifier = Modifier.height(32.dp))
+
+                Text(
+                    text = "Tap a gender to generate a unique AI profile photo",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
 
                 if (isLoading) {
                     Box(
@@ -379,38 +378,42 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                                 if (user != null) {
                                     scope.launch(Dispatchers.IO) {
                                         try {
-                                            val imagePath = if (customImageUri != null) {
-                                                // Upload custom image as base64
-                                                val bitmap = if (customImageUri!!.scheme?.startsWith("http") == true) {
-                                                    val url = java.net.URL(customImageUri.toString())
-                                                    val connection = url.openConnection() as java.net.HttpURLConnection
-                                                    connection.doInput = true
-                                                    connection.connect()
-                                                    BitmapFactory.decodeStream(connection.inputStream)
+                                            val currentImageSource = customImageUri?.toString() ?: imageUrl
+                                            val imagePath = if (currentImageSource != null) {
+                                                val bitmap = if (currentImageSource.startsWith("http")) {
+                                                    // Add a timeout for network image fetching
+                                                    withContext(Dispatchers.IO) {
+                                                        try {
+                                                            val url = URL(currentImageSource)
+                                                            val connection = url.openConnection() as HttpURLConnection
+                                                            connection.doInput = true
+                                                            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+                                                            connection.connectTimeout = 60000 // 60s timeout to match AI generation time
+                                                            connection.readTimeout = 60000
+                                                            connection.connect()
+                                                            BitmapFactory.decodeStream(connection.inputStream)
+                                                        } catch (e: Exception) {
+                                                            null
+                                                        }
+                                                    }
                                                 } else {
-                                                    context.contentResolver.openInputStream(customImageUri!!)?.use {
+                                                    context.contentResolver.openInputStream(Uri.parse(currentImageSource))?.use {
                                                         BitmapFactory.decodeStream(it)
                                                     }
                                                 }
 
                                                 if (bitmap != null) {
-                                                    // Scale down to reasonable size for Base64 storage while keeping it "HD"
                                                     val maxSize = 720
                                                     val ratio = bitmap.width.toFloat() / bitmap.height.toFloat()
                                                     val finalWidth = if (bitmap.width > bitmap.height) maxSize else (maxSize * ratio).toInt()
                                                     val finalHeight = if (bitmap.width > bitmap.height) (maxSize / ratio).toInt() else maxSize
                                                     val scaledBitmap = Bitmap.createScaledBitmap(bitmap, finalWidth, finalHeight, true)
-
                                                     val outputStream = java.io.ByteArrayOutputStream()
-                                                    scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream) // Good balance
+                                                    scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
                                                     val base64 = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
                                                     "data:image/jpeg;base64,$base64"
-                                                } else {
-                                                    "Memoji/$selectedGender/Circle/$selectedImage"
-                                                }
-                                            } else {
-                                                "Memoji/$selectedGender/Circle/$selectedImage"
-                                            }
+                                                } else ""
+                                            } else ""
 
                                             val userUpdates = mutableMapOf<String, Any>(
                                                 "uid" to user.uid,

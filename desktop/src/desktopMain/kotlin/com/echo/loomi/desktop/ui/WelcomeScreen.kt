@@ -2,8 +2,6 @@ package com.echo.loomi.desktop.ui
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -22,7 +20,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.echo.loomi.desktop.network.FirebaseClient
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -36,9 +33,6 @@ fun WelcomeScreen(
     userEmail: String,
     onProfileComplete: () -> Unit
 ) {
-    val imageNames = (1..14).map { if (it < 10) "0$it.png" else "$it.png" }
-    var selectedGender by remember { mutableStateOf("Male") }
-    var selectedImage by remember { mutableStateOf(imageNames[0]) }
     var customImageBase64 by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -65,7 +59,6 @@ fun WelcomeScreen(
         if (googlePhotoUrl.isNotEmpty()) {
             withContext(Dispatchers.IO) {
                 try {
-                    // Request high quality from Google
                     val highResUrl = if (googlePhotoUrl.contains("googleusercontent.com")) {
                         if (googlePhotoUrl.contains("=")) {
                             googlePhotoUrl.substringBeforeLast("=") + "=s512-c"
@@ -116,18 +109,18 @@ fun WelcomeScreen(
                         contentScale = ContentScale.Crop,
                         filterQuality = FilterQuality.High
                     )
-                    selectedImage.isEmpty() && googleBitmap != null -> Image(
+                    googleBitmap != null -> Image(
                         googleBitmap!!, 
                         null, 
                         modifier = Modifier.fillMaxSize(), 
                         contentScale = ContentScale.Crop,
                         filterQuality = FilterQuality.High
                     )
-                    else -> Image(
-                        painter = painterResource("Memoji/$selectedGender/Circle/$selectedImage"), 
+                    else -> Icon(
+                        painter = painterResource("drawable/image.xml"), 
                         contentDescription = null, 
-                        modifier = Modifier.fillMaxSize().padding(10.dp), 
-                        contentScale = ContentScale.Crop
+                        modifier = Modifier.size(60.dp),
+                        tint = accent.copy(0.2f)
                     )
                 }
             }
@@ -147,7 +140,7 @@ fun WelcomeScreen(
                             fd.isVisible = true
                             if (fd.file != null) {
                                 val bytes = File(fd.directory, fd.file).readBytes()
-                                withContext(Dispatchers.Main) { customImageBase64 = "data:image/jpeg;base64,${Base64.getEncoder().encodeToString(bytes)}"; selectedImage = "" }
+                                withContext(Dispatchers.Main) { customImageBase64 = "data:image/jpeg;base64,${Base64.getEncoder().encodeToString(bytes)}" }
                             }
                         }
                     }, contentAlignment = Alignment.Center) {
@@ -160,41 +153,19 @@ fun WelcomeScreen(
                     }
                     
                     if (googleBitmap != null) {
-                        Box(modifier = Modifier.size(54.dp).clip(CircleShape).clickable { customImageBase64 = null; selectedImage = "" }) {
+                        Box(modifier = Modifier.size(54.dp).clip(CircleShape).clickable { customImageBase64 = null }) {
                             Image(googleBitmap!!, null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(48.dp))
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    listOf("MALE", "FEMALE").forEach { g ->
-                        val sel = selectedGender.uppercase() == g
-                        Button(
-                            onClick = { selectedGender = if (g == "MALE") "Male" else "Female"; customImageBase64 = null; if (selectedImage.isEmpty()) selectedImage = imageNames[0] },
-                            modifier = Modifier.weight(1f).height(50.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = if (sel) accent else accent.copy(0.05f), contentColor = if (sel) surface else accent),
-                            border = if (!sel) BorderStroke(1.dp, accent.copy(0.1f)) else null
-                        ) { Text(g, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace) }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(horizontal = 4.dp)
-                ) {
-                    items(imageNames) { img ->
-                        val sel = selectedImage == img
-                        Box(modifier = Modifier.size(64.dp).border(if (sel) 2.dp else 1.dp, if (sel) accent else accent.copy(0.1f), CircleShape).padding(4.dp).clip(CircleShape).clickable { selectedImage = img; customImageBase64 = null }) {
-                            Image(painterResource("Memoji/$selectedGender/Circle/$img"), null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                        }
-                    }
-                }
+                Text(
+                    "Select a profile picture to continue",
+                    fontSize = 14.sp,
+                    color = accent.copy(0.5f)
+                )
 
                 Spacer(modifier = Modifier.height(48.dp))
 
@@ -206,16 +177,9 @@ fun WelcomeScreen(
                             scope.launch(Dispatchers.IO) {
                                 val imagePath = when {
                                     customImageBase64 != null -> customImageBase64!!
-                                    selectedImage.isEmpty() && googlePhotoUrl.isNotEmpty() -> googlePhotoUrl
-                                    else -> "Memoji/$selectedGender/Circle/$selectedImage"
+                                    googlePhotoUrl.isNotEmpty() -> googlePhotoUrl
+                                    else -> ""
                                 }
-                                
-                                // Fetch current session to get name and email
-                                // In a real app, this should be passed in or managed via a state holder
-                                // For now we assume the caller provides correct context if needed, 
-                                // but we'll try to find them from the SessionData if possible (passed via a hack or improved API)
-                                // Since we don't have the name/email here directly, we'll just write imageName
-                                // and hope Main.kt handled the rest. But to avoid ghosts, let's make sure we write basic fields too.
                                 
                                 val userUpdates = mutableMapOf<String, Any>(
                                     "uid" to uid,
@@ -231,6 +195,7 @@ fun WelcomeScreen(
                         } else onProfileComplete()
                     },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
+                    enabled = customImageBase64 != null || googlePhotoUrl.isNotEmpty(),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = surface)
                 ) {

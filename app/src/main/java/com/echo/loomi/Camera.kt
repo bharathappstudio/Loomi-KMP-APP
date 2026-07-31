@@ -607,7 +607,7 @@ fun CameraView(isActive: Boolean, onBack: () -> Unit, onImageCaptured: (Uri) -> 
             LaunchedEffect(Unit) {
                 if (musicSearchQuery.isEmpty()) {
                     isSearching = true
-                    musicResults = searchMusic("tamil songs")
+                    musicResults = searchMusic("trending tamil love songs")
                     isSearching = false
                 }
             }
@@ -620,7 +620,7 @@ fun CameraView(isActive: Boolean, onBack: () -> Unit, onImageCaptured: (Uri) -> 
                     isSearching = false
                 } else if (musicSearchQuery.isEmpty()) {
                     isSearching = true
-                    musicResults = searchMusic("tamil songs")
+                    musicResults = searchMusic("trending tamil love songs")
                     isSearching = false
                 }
             }
