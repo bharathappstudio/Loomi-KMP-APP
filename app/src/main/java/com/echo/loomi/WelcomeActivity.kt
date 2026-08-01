@@ -54,6 +54,7 @@ import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.random.Random
+import java.net.URLEncoder
 
 class WelcomeActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -77,15 +78,22 @@ class WelcomeActivity : ComponentActivity() {
 }
 
 fun getAvatarImageUrl(gender: String): String {
+    // Updated prompts to match the specific aesthetic of the images provided with 4K quality keywords
     val prompt = if (gender == "Male") {
-        "A modern flat vector illustration of a young man's user profile avatar, contemporary 2026 design trend, soft organic shapes, subtle duotone gradient background, minimalist geometric face with clean bold outlines, trendy muted pastel color palette, abstract simplified hairstyle, matte flat colors with soft depth, circular avatar frame, modern SaaS app icon style, Notion-style character illustration, vector art, ultra high resolution, 8k quality, crisp clean lines, sharp detail, professional studio quality, no photorealism, no heavy shading"
+        """
+        https://image.pollinations.ai/prompt/2D%20black%20and%20white%20vector%20line%20art%20portrait%20of%20a%20young%20boy%20with%20messy%20spiky%20dark%20hair.%20He%20has%20a%20bored%2C%20unamused%2C%20and%20tired%20expression%20with%20half-closed%20eyes%2C%20bags%20under%20his%20eyes%2C%20and%20a%20flat%20thin%20smirk.%20He%20has%20a%20round%20face%20and%20simple%20ears.%20He%20is%20wearing%20a%20black%20turtleneck%20sweater%20with%20white%20line%20details%20on%20the%20collar.%20Background%20is%20solid%20pitch%20black.%20The%20art%20style%20is%20high%20contrast%20monochrome%2C%20cartoon%20character%20design%2C%20clean%20bold%20outlines%2C%20minimalist%20line%20drawing%2C%20flat%20illustration%2C%20no%20shading%2C%20anime%20manga%20sketch%20style.%20--ar%201%3A1?width=4096&height=4096&nologo=true&seed=11111&model=flux
+        """.trimIndent()
     } else {
-        "A modern flat vector illustration of a young woman's user profile avatar, contemporary 2026 design trend, soft organic shapes, subtle duotone gradient background, minimalist geometric face with clean bold outlines, trendy muted pastel color palette, abstract simplified hairstyle, matte flat colors with soft depth, circular avatar frame, modern SaaS app icon style, Notion-style character illustration, vector art, ultra high resolution, 8k quality, crisp clean lines, sharp detail, professional studio quality, no photorealism, no heavy shading"
+        """
+       HD Magical realism digital painting of a dark silhouette of a girl with long windblown hair in a twirling flared dress dancing in a field at night. Layer 1: Deep midnight blue sky with wispy dark blue clouds. Layer 2: A single bright white full moon at the top center emitting a massive vertical ray of dense white stardust and glittering particles cascading downward. Layer 3: The girl is a solid black profile silhouette with soft blue rim lighting from the moon. Layer 4: A swirling ring of glowing white magic sparks circling her waist and feet. Layer 5: Dark foreground grass with prominent white feathery wheat stalks catching the moonlight. Style: Dreamy ethereal atmosphere, sharp contrast between pure black and glowing white, epic cinematic lighting, starlit night scene.
+        """.trimIndent()
     }
-    val encodedPrompt = java.net.URLEncoder.encode(prompt, "UTF-8")
-    val seed = Random.nextInt(1000000)
-    // Using model=flux for the highest quality and best prompt adherence
-    return "https://image.pollinations.ai/prompt/$encodedPrompt?width=1024&height=1024&nologo=true&seed=$seed&model=flux"
+
+    val encodedPrompt = URLEncoder.encode(prompt, "UTF-8")
+    val seed = Random.nextInt(1_000_000)
+
+    // Using 4K resolution and the flagship Flux model for superior quality
+    return "https://image.pollinations.ai/prompt/$encodedPrompt?width=4096&height=4096&nologo=true&seed=$seed&model=flux"
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -98,7 +106,7 @@ fun WelcomeScreen(onFinish: () -> Unit) {
     var imageUrl by remember { mutableStateOf<String?>(null) }
     var customImageUri by remember {
         mutableStateOf<Uri?>(currentUser?.photoUrl?.let {
-            Uri.parse(it.toString().replace("s96-c", "s4000"))
+            Uri.parse(it.toString().replace("s96-c", "s512-c"))
         })
     }
     var isLoading by remember { mutableStateOf(false) }
@@ -192,7 +200,7 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                         contentAlignment = Alignment.Center
                     ) {
                         val model: Any = customImageUri ?: imageUrl ?: R.drawable.image
-                        
+
                         AsyncImage(
                             model = ImageRequest.Builder(context)
                                 .data(model)
@@ -208,7 +216,7 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                             contentScale = ContentScale.Crop,
                             onLoading = { isProfileLoading = true },
                             onSuccess = { isProfileLoading = false },
-                            onError = { result -> 
+                            onError = { result ->
                                 isProfileLoading = false
                                 val errorMsg = result.result.throwable.message ?: "Unknown error"
                                 android.util.Log.e("WelcomeActivity", "Image load failed for model: $model, Error: $errorMsg")
@@ -262,7 +270,7 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                             .size(56.dp)
                             .clip(CircleShape)
                             .background(
-                                if (isGoogleSelected) Color.Black 
+                                if (isGoogleSelected) Color.Black
                                 else if (isSystemInDarkTheme()) Color.White else Color(0xFFF5F5F5)
                             )
                             .border(
@@ -272,7 +280,7 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                             )
                             .clickable {
                                 currentUser?.photoUrl?.let {
-                                    val highResUrl = it.toString().replace("s96-c", "s4000")
+                                    val highResUrl = it.toString().replace("s96-c", "s512-c")
                                     customImageUri = Uri.parse(highResUrl)
                                     imageUrl = null
                                     selectedGender = null
@@ -297,7 +305,7 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                             .size(56.dp)
                             .clip(CircleShape)
                             .background(
-                                if (isGallerySelected) Color.Black 
+                                if (isGallerySelected) Color.Black
                                 else if (isSystemInDarkTheme()) Color.White else Color(0xFFF5F5F5)
                             )
                             .border(
@@ -309,9 +317,9 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            painterResource(R.drawable.image), 
-                            null, 
-                            modifier = Modifier.size(24.dp), 
+                            painterResource(R.drawable.image),
+                            null,
+                            modifier = Modifier.size(24.dp),
                             tint = if (isGallerySelected) Color.White else Color.Black
                         )
                     }
@@ -329,7 +337,7 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                                 .height(48.dp)
                                 .clip(RoundedCornerShape(24.dp))
                                 .background(
-                                    if (isSelected) Color.Black 
+                                    if (isSelected) Color.Black
                                     else if (isSystemInDarkTheme()) Color.White else Color(0xFFF5F5F5)
                                 )
                                 .clickable {
@@ -397,20 +405,17 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                                             val currentImageSource = customImageUri?.toString() ?: imageUrl
                                             val imagePath = if (currentImageSource != null) {
                                                 val bitmap = if (currentImageSource.startsWith("http")) {
-                                                    // Add a timeout for network image fetching
-                                                    withContext(Dispatchers.IO) {
-                                                        try {
-                                                            val url = URL(currentImageSource)
-                                                            val connection = url.openConnection() as HttpURLConnection
-                                                            connection.doInput = true
-                                                            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-                                                            connection.connectTimeout = 60000 // 60s timeout to match AI generation time
-                                                            connection.readTimeout = 60000
-                                                            connection.connect()
-                                                            BitmapFactory.decodeStream(connection.inputStream)
-                                                        } catch (e: Exception) {
-                                                            null
-                                                        }
+                                                    // Use Coil's ImageLoader to fetch the image efficiently (likely from cache)
+                                                    val request = ImageRequest.Builder(context)
+                                                        .data(currentImageSource)
+                                                        .size(512)
+                                                        .allowHardware(false) // Required for conversion to bitmap
+                                                        .build()
+                                                    val result = imageLoader.execute(request)
+                                                    if (result is coil.request.SuccessResult) {
+                                                        (result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                                                    } else {
+                                                        null
                                                     }
                                                 } else {
                                                     context.contentResolver.openInputStream(Uri.parse(currentImageSource))?.use {
@@ -419,13 +424,13 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                                                 }
 
                                                 if (bitmap != null) {
-                                                    val maxSize = 720
+                                                    val maxSize = 4096 // Full 4K resolution
                                                     val ratio = bitmap.width.toFloat() / bitmap.height.toFloat()
                                                     val finalWidth = if (bitmap.width > bitmap.height) maxSize else (maxSize * ratio).toInt()
                                                     val finalHeight = if (bitmap.width > bitmap.height) (maxSize / ratio).toInt() else maxSize
                                                     val scaledBitmap = Bitmap.createScaledBitmap(bitmap, finalWidth, finalHeight, true)
                                                     val outputStream = java.io.ByteArrayOutputStream()
-                                                    scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
+                                                    scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 98, outputStream) // Near-lossless quality
                                                     val base64 = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
                                                     "data:image/jpeg;base64,$base64"
                                                 } else ""
