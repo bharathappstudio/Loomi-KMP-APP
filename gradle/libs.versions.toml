@@ -14,7 +14,9 @@ coil = "2.7.0"
 playServicesAuth = "21.3.0"
 playServicesLocation = "21.3.0"
 playServicesWallet = "19.4.0"
+playServicesPay = "16.5.0"
 material = "1.13.0"
+billing = "7.1.1"
 material3 = "1.4.0-alpha05"
 googleServices = "4.4.2"
 firebaseBom = "34.13.0"
@@ -28,6 +30,7 @@ zxing = "3.5.3"
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
 play-services-wallet = { group = "com.google.android.gms", name = "play-services-wallet", version.ref = "playServicesWallet" }
+play-services-pay = { group = "com.google.android.gms", name = "play-services-pay", version.ref = "playServicesPay" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 coil-svg = { group = "io.coil-kt", name = "coil-svg", version.ref = "coil" }
 coil-gif = { group = "io.coil-kt", name = "coil-gif", version.ref = "coil" }
@@ -63,6 +66,7 @@ androidx-camera-video = { group = "androidx.camera", name = "camera-video", vers
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 androidx-camera-extensions = { group = "androidx.camera", name = "camera-extensions", version.ref = "camerax" }
 google-webrtc = { group = "io.getstream", name = "stream-webrtc-android", version.ref = "webrtc" }
+billing-ktx = { group = "com.android.billingclient", name = "billing-ktx", version.ref = "billing" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version = "1.9.0" }
 kotlinx-coroutines-swing = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-swing", version = "1.9.0" }

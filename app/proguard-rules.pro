@@ -45,7 +45,7 @@
 -keep class com.echo.loomi.CallActivity { *; }
 -keep class com.echo.loomi.Setting { *; }
 -keep class com.echo.loomi.EchoActivity { *; }
--keep class com.echo.loomi.PaymentActivity { *; }
+
 -keep class com.echo.loomi.LoomiFirebaseMessagingService { *; }
 -keep class com.echo.loomi.MessageListenerService { *; }
 -keep class com.echo.loomi.DirectReplyReceiver { *; }
