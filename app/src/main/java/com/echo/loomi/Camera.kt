@@ -826,8 +826,15 @@ private suspend fun uploadToStory(context: Context, uri: Uri, songId: Long?, son
                 return@withContext
             }
 
+            // Optimize for fast upload: Rescale stories to 1080p height max
+            val maxStoryDim = 1080
+            val ratio = bitmap.width.toFloat() / bitmap.height.toFloat()
+            val finalWidth = if (bitmap.width > bitmap.height) maxStoryDim else (maxStoryDim * ratio).toInt()
+            val finalHeight = if (bitmap.width > bitmap.height) (maxStoryDim / ratio).toInt() else maxStoryDim
+            val rescaledBitmap = Bitmap.createScaledBitmap(bitmap, finalWidth, finalHeight, true)
+
             val outputStream = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
+            rescaledBitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
             val base64Image = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
             
             val storyId = currentUid // Use UID as the story ID

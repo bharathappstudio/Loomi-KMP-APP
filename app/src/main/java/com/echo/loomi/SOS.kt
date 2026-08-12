@@ -124,9 +124,9 @@ class SOSManager(
             )
         }
 
-        database.child("locations").child(currentUser.uid).updateChildren(sosData)
+        database.child("locations").child(currentUser.uid).setValue(sosData)
             .addOnSuccessListener {
-                Log.d("SOSManager", "SOS data updated at locations path")
+                Log.d("SOSManager", "SOS data uploaded and old data removed")
             }
     }
 

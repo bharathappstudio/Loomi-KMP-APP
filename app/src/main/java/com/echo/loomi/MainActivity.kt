@@ -144,7 +144,12 @@ class MainActivity : ComponentActivity() {
                             val auth = FirebaseAuth.getInstance()
                             val uid = auth.currentUser?.uid
                             
-                            // Stop the background service immediately
+                            // 1. Stop SOS sensor immediately to prevent accidental triggers during logout
+                            if (::sosManager.isInitialized) {
+                                sosManager.stop()
+                            }
+
+                            // 2. Stop the background service immediately
                             val serviceIntent = Intent(this@MainActivity, MessageListenerService::class.java)
                             stopService(serviceIntent)
 
@@ -170,6 +175,9 @@ class MainActivity : ComponentActivity() {
                             finish()
                         },
                         onAddAccount = {
+                            if (::sosManager.isInitialized) {
+                                sosManager.stop()
+                            }
                             googleAuthClient.signIn(forcePicker = true)
                         }
                     )
@@ -714,22 +722,24 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(44.dp)
+                                        .size(50.dp)
                                         .align(Alignment.CenterStart)
                                         .clip(CircleShape)
                                         .background(
-                                            if (isDark) Color.White else Color(0xFFFFECB3).copy(
-                                                alpha = 0.5f
-                                            ), CircleShape
+                                            if (isDark) Color.White else Color(0xFFFFFCDC),
+                                            CircleShape
                                         )
-                                        .clickable {
-                                            context.startActivity(
-                                                Intent(
-                                                    context,
-                                                    WelcomeActivity::class.java
+                                        .combinedClickable(
+                                            onClick = {
+                                                context.startActivity(
+                                                    Intent(
+                                                        context,
+                                                        WelcomeActivity::class.java
+                                                    )
                                                 )
-                                            )
-                                        },
+                                            },
+                                            onLongClick = onAddAccount
+                                        ),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     AnimatedContent(
@@ -790,7 +800,7 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
                                                 contentDescription = "Profile",
                                                 modifier = Modifier
                                                     .fillMaxSize()
-                                                    .padding(if (isDark) 2.5.dp else 0.dp) // Ring effect
+                                                    .padding(2.5.dp) // Ring effect
                                                     .clip(CircleShape),
                                                 contentScale = ContentScale.Crop,
                                                 error = painterResource(R.drawable.logo)
@@ -1067,7 +1077,6 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
                         if (isSearchVisible) isStoriesVisible = false
                     },
                     onShortsClick = onShortsClick,
-                    onAddAccount = onAddAccount,
                     onStoryClick = {
                         isStoriesVisible = !isStoriesVisible
                         if (isStoriesVisible) isSearchVisible = false
@@ -1331,7 +1340,7 @@ fun SnapChatItem(user: SnapUser, onClick: () -> Unit, onLongClick: () -> Unit, i
                          else if (isDark) Color.White.copy(alpha = 0.2f)
                          else Color(0xFFFFD54F).copy(alpha = 0.5f)
 
-        Box(modifier = Modifier.size(54.dp).border(width = 2.dp, color = statusColor, shape = CircleShape).background(MaterialTheme.colorScheme.surface, CircleShape), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.size(50.dp).border(width = 2.dp, color = statusColor, shape = CircleShape).background(MaterialTheme.colorScheme.surface, CircleShape), contentAlignment = Alignment.Center) {
             val context = LocalContext.current
             val imageRequest = remember(user.imageName) {
                 val data: Any = if (user.imageName.startsWith("data:image")) {
@@ -1395,7 +1404,6 @@ fun FloatingBottomNavBar(
     onCameraClick: () -> Unit,
     onSearchClick: () -> Unit,
     onShortsClick: () -> Unit,
-    onAddAccount: () -> Unit,
     onStoryClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1415,10 +1423,7 @@ fun FloatingBottomNavBar(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .combinedClickable(
-                        onClick = onStoryClick,
-                        onLongClick = onAddAccount
-                    ),
+                    .clickable { onStoryClick() },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(painterResource(R.drawable.heart), null, tint = iconColor, modifier = Modifier.size(20.dp))

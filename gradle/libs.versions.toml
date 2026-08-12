@@ -25,6 +25,9 @@ coreSplashscreen = "1.0.1"
 camerax = "1.4.1"
 webrtc = "1.3.10"
 zxing = "3.5.3"
+credentials = "1.3.0"
+googleid = "1.1.1"
+generativeai = "0.9.0"
 
 [libraries]
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
@@ -68,6 +71,10 @@ androidx-camera-extensions = { group = "androidx.camera", name = "camera-extensi
 google-webrtc = { group = "io.getstream", name = "stream-webrtc-android", version.ref = "webrtc" }
 billing-ktx = { group = "com.android.billingclient", name = "billing-ktx", version.ref = "billing" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
+androidx-credentials-auth = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
+androidx-credentials-play-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
+googleid-auth = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleid" }
+google-generativeai = { group = "com.google.ai.client.generativeai", name = "generativeai", version.ref = "generativeai" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version = "1.9.0" }
 kotlinx-coroutines-swing = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-swing", version = "1.9.0" }
 

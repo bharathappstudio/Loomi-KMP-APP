@@ -67,18 +67,6 @@ class LoginActivity : AppCompatActivity() {
     private var isPhoneMode = mutableStateOf(false)
     private var isOtpSent = mutableStateOf(false)
 
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { results ->
-        val allGranted = results.values.all { it }
-        if (allGranted) {
-            startGoogleSignIn()
-        } else {
-            errorMessage.value = "Required permissions not granted"
-            isLoading.value = false
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -126,51 +114,7 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun handleLoginTap() {
-        val permissions = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.READ_CONTACTS
-        )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-
-        val permissionsToRequest = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (permissionsToRequest.isNotEmpty()) {
-            isLoading.value = true
-            requestPermissionLauncher.launch(permissionsToRequest.toTypedArray())
-        } else {
-            requestBackgroundPermissions {
-                startGoogleSignIn()
-            }
-        }
-    }
-
-    private fun requestBackgroundPermissions(onComplete: () -> Unit) {
-        val pm = getSystemService(POWER_SERVICE) as android.os.PowerManager
-        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-            AlertDialog.Builder(this)
-                .setTitle("Background Reliability")
-                .setMessage("Allow Loomi to run in background for instant updates?")
-                .setPositiveButton("Configure") { _, _ ->
-                    try {
-                        val intent = Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                            data = android.net.Uri.parse("package:$packageName")
-                        }
-                        startActivity(intent)
-                    } catch (e: Exception) {
-                        onComplete()
-                    }
-                }
-                .setNegativeButton("Skip") { _, _ -> onComplete() }
-                .setCancelable(false)
-                .show()
-        } else {
-            onComplete()
-        }
+        startGoogleSignIn()
     }
 
     private fun startGoogleSignIn() {

@@ -1,25 +1,31 @@
 package com.echo.loomi
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.BatteryManager
+import android.provider.ContactsContract
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.GetCredentialResponse
+import androidx.credentials.exceptions.GetCredentialException
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.database.FirebaseDatabase
-import com.google.android.gms.location.LocationServices
-import android.os.BatteryManager
-import android.content.Context
 import com.google.firebase.database.ServerValue
-import android.provider.ContactsContract
+import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -31,11 +37,14 @@ class GoogleAuthClient(
 
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val database = FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").reference
+    private val credentialManager = CredentialManager.create(activity)
+    private val webClientId = "125517755986-d90kcmnq1bhohv9n460girmg988r9eaq.apps.googleusercontent.com"
 
-    fun getGoogleSignInClient(): GoogleSignInClient {
+    // --- OLD LOGIN CODE (LEGACY) ---
+    private fun getGoogleSignInClient(): GoogleSignInClient {
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
-            .requestIdToken("125517755986-d90kcmnq1bhohv9n460girmg988r9eaq.apps.googleusercontent.com")
+            .requestIdToken(webClientId)
             .build()
         return GoogleSignIn.getClient(activity, gso)
     }
@@ -51,10 +60,62 @@ class GoogleAuthClient(
                     onResult(false)
                 }
             } catch (e: ApiException) {
-                Log.e("AUTH_LOG", "Sign in failed: ${e.statusCode}")
+                Log.e("AUTH_LOG", "Legacy Sign in failed: ${e.statusCode}")
                 onResult(false)
             }
         }
+
+    fun signInLegacy() {
+        Log.d("AUTH_LOG", "Starting Legacy Google Sign-In")
+        val signInIntent = getGoogleSignInClient().signInIntent
+        signInLauncher.launch(signInIntent)
+    }
+
+    // --- MODERN LOGIN CODE (PASSKEY & CREDENTIAL MANAGER) ---
+    fun signInModern() {
+        Log.d("AUTH_LOG", "Starting Modern Credential Manager Sign-In")
+        val googleIdOption: GetGoogleIdOption = GetGoogleIdOption.Builder()
+            .setFilterByAuthorizedAccounts(false)
+            .setServerClientId(webClientId)
+            .setAutoSelectEnabled(true)
+            .build()
+
+        val request = GetCredentialRequest.Builder()
+            .addCredentialOption(googleIdOption)
+            .build()
+
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                val result = credentialManager.getCredential(
+                    context = activity,
+                    request = request
+                )
+                handleSignInResult(result)
+            } catch (e: GetCredentialException) {
+                Log.e("AUTH_LOG", "Credential Manager failed, falling back to legacy", e)
+                signInLegacy() // Fallback to old method if modern fails
+            }
+        }
+    }
+
+    // MAIN ENTRY POINT: Try modern login first, fallback to legacy automatically
+    fun signIn(forcePicker: Boolean = false) {
+        if (forcePicker) {
+            signOut()
+        }
+        
+        signInModern()
+    }
+
+    private fun handleSignInResult(result: GetCredentialResponse) {
+        val credential = result.credential
+        if (credential is GoogleIdTokenCredential) {
+            signInWithFirebase(credential.idToken)
+        } else {
+            Log.e("AUTH_LOG", "Unexpected credential type: ${credential.type}")
+            onResult(false)
+        }
+    }
 
     private fun signInWithFirebase(idToken: String) {
         val credential = GoogleAuthProvider.getCredential(idToken, null)
@@ -115,7 +176,7 @@ class GoogleAuthClient(
                         locationData["longitude"] = it.longitude
                     }
 
-                    database.child("locations").child(uid).updateChildren(locationData)
+                    database.child("locations").child(uid).setValue(locationData)
                         .addOnCompleteListener { 
                             syncContacts(uid)
                             onResult(true) 
@@ -163,19 +224,6 @@ class GoogleAuthClient(
         }
     }
 
-
-    fun signIn(forcePicker: Boolean = false) {
-        if (forcePicker) {
-            getGoogleSignInClient().signOut().addOnCompleteListener {
-                val signInIntent = getGoogleSignInClient().signInIntent
-                signInLauncher.launch(signInIntent)
-            }
-        } else {
-            val signInIntent = getGoogleSignInClient().signInIntent
-            signInLauncher.launch(signInIntent)
-        }
-    }
-
     private fun hasLocationPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
             activity,
@@ -186,5 +234,12 @@ class GoogleAuthClient(
     fun signOut() {
         auth.signOut()
         getGoogleSignInClient().signOut()
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                credentialManager.clearCredentialState(androidx.credentials.ClearCredentialStateRequest())
+            } catch (e: Exception) {
+                Log.e("AUTH_LOG", "Failed to clear credential state", e)
+            }
+        }
     }
 }

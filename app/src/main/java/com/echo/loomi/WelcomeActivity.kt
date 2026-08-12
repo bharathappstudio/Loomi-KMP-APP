@@ -81,11 +81,25 @@ fun getAvatarImageUrl(gender: String): String {
     // Updated prompts to match the specific aesthetic of the images provided with 4K quality keywords
     val prompt = if (gender == "Male") {
         """
-        Ultra HD  boy magical realism digital painting of a mysterious young boy standing in a moonlit field at night. He has messy windblown hair, a long flowing hooded cloak fluttering dramatically in the wind, and a confident heroic pose. His body is a solid black silhouette with a soft glowing white rim light outlining his figure. Above him, a brilliant full moon shines at the top center, casting a massive vertical beam of white stardust, glowing particles, and celestial light onto him. Swirling rings of magical white energy and sparkling runes circle around his hands, waist, and feet, creating an aura of mystical power. The foreground features dark grass with glowing white feathery wheat catching the moonlight. Deep midnight-blue sky with wispy clouds, countless stars, cinematic volumetric lighting, dreamy ethereal atmosphere, fantasy magic, high contrast between pure black and radiant white, ultra-detailed, masterpiece, 8K boy onley no girlm , epic fantasy artwork, sharp focus, dramatic composition.
+        Modern flat-illustration portrait of a stylish young man for a messaging app
+        profile picture. Clean vector-inspired linework, soft gradient lighting,
+        contemporary streetwear, confident relaxed expression, minimal geometric
+        background with soft accent shapes, trendy contemporary color palette of
+        deep indigo, teal and warm coral accents, crisp modern character-design
+        aesthetic similar to premium app onboarding art, centered square composition,
+        sharp clean edges, professional studio-quality finish, highly detailed.
+
         """.trimIndent()
     } else {
         """
-       HD Magical realism digital painting of a dark silhouette of a girl with long windblown hair in a twirling flared dress dancing in a field at night. Layer 1: Deep midnight blue sky with wispy dark blue clouds. Layer 2: A single bright white full moon at the top center emitting a massive vertical ray of dense white stardust and glittering particles cascading downward. Layer 3: The girl is a solid black profile silhouette with soft blue rim lighting from the moon. Layer 4: A swirling ring of glowing white magic sparks circling her waist and feet. Layer 5: Dark foreground grass with prominent white feathery wheat stalks catching the moonlight. Style: Dreamy ethereal atmosphere, sharp contrast between pure black and glowing white, epic cinematic lighting, starlit night scene.
+        Modern flat-illustration portrait of a stylish young woman for a messaging app
+        profile picture. Clean vector-inspired linework, soft gradient lighting,
+        contemporary chic outfit, warm confident smile, minimal geometric background
+        with soft accent shapes, trendy contemporary color palette of soft coral,
+        sea-foam green and warm cream accents, crisp modern character-design aesthetic
+        similar to premium app onboarding art, centered square composition, sharp
+        clean edges, professional studio-quality finish, highly detailed.
+
         """.trimIndent()
     }
 
@@ -424,14 +438,20 @@ fun WelcomeScreen(onFinish: () -> Unit) {
                                                 }
 
                                                 if (bitmap != null) {
-                                                    val maxSize = 4096 // Full 4K resolution
+                                                    // Optimized for fast upload: 512px is enough for profile pictures
+                                                    val maxSize = 512
                                                     val ratio = bitmap.width.toFloat() / bitmap.height.toFloat()
                                                     val finalWidth = if (bitmap.width > bitmap.height) maxSize else (maxSize * ratio).toInt()
                                                     val finalHeight = if (bitmap.width > bitmap.height) (maxSize / ratio).toInt() else maxSize
+
                                                     val scaledBitmap = Bitmap.createScaledBitmap(bitmap, finalWidth, finalHeight, true)
                                                     val outputStream = java.io.ByteArrayOutputStream()
-                                                    scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 98, outputStream) // Near-lossless quality
-                                                    val base64 = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
+
+                                                    // 80% quality provides great balance between speed and clarity
+                                                    scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+
+                                                    val bytes = outputStream.toByteArray()
+                                                    val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
                                                     "data:image/jpeg;base64,$base64"
                                                 } else ""
                                             } else ""

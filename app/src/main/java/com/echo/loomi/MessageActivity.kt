@@ -310,9 +310,16 @@ fun MessageScreen(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
         if (bitmap != null) {
+            // Optimized for fast chat: 800px is perfect for messaging
+            val maxDim = 800
+            val ratio = bitmap.width.toFloat() / bitmap.height.toFloat()
+            val finalWidth = if (bitmap.width > bitmap.height) maxDim else (maxDim * ratio).toInt()
+            val finalHeight = if (bitmap.width > bitmap.height) (maxDim / ratio).toInt() else maxDim
+            val rescaledBitmap = Bitmap.createScaledBitmap(bitmap, finalWidth, finalHeight, true)
+
             val outputStream = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
-            val base64Image = Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
+            rescaledBitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
+            val base64Image = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
             
             val msgId = database.child("chats").child(chatId).push().key ?: ""
             val message = ChatMessage(
@@ -333,9 +340,16 @@ fun MessageScreen(
             val inputStream = context.contentResolver.openInputStream(it)
             val bitmap = BitmapFactory.decodeStream(inputStream)
             if (bitmap != null) {
+                // Optimized for fast chat: 800px max dimension
+                val maxDim = 800
+                val ratio = bitmap.width.toFloat() / bitmap.height.toFloat()
+                val finalWidth = if (bitmap.width > bitmap.height) maxDim else (maxDim * ratio).toInt()
+                val finalHeight = if (bitmap.width > bitmap.height) (maxDim / ratio).toInt() else maxDim
+                val rescaledBitmap = Bitmap.createScaledBitmap(bitmap, finalWidth, finalHeight, true)
+
                 val outputStream = ByteArrayOutputStream()
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
-                val base64Image = Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
+                rescaledBitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
+                val base64Image = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
                 
                 val msgId = database.child("chats").child(chatId).push().key ?: ""
                 val message = ChatMessage(
