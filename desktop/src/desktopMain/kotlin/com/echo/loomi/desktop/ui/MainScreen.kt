@@ -122,27 +122,10 @@ fun MainScreen(
     LaunchedEffect(Unit) {
         val uid = FirebaseClient.currentUid ?: return@LaunchedEffect
         while (true) {
-            // Check if user exists in DB before sending heartbeat to avoid creating "ghost" users
-            FirebaseClient.read("users/$uid") { userJson ->
-                if (userJson != null && userJson != "null") {
-                    try {
-                        val obj = com.google.gson.JsonParser.parseString(userJson).asJsonObject
-                        if (obj.has("name") && obj.has("imageName")) {
-                            FirebaseClient.write("users/$uid/status", "Online")
-                            FirebaseClient.write("users/$uid/lastSeen", System.currentTimeMillis())
-                        } else {
-                            // Ghost detected or incomplete, clean up and log out
-                            FirebaseClient.delete("users/$uid")
-                            onLogout()
-                        }
-                    } catch (e: Exception) {
-                        onLogout()
-                    }
-                } else {
-                    onLogout()
-                }
-            }
-            delay(20000) // Heartbeat every 20 seconds
+            // Heartbeat without aggressive logout
+            FirebaseClient.write("users/$uid/status", "Online")
+            FirebaseClient.write("users/$uid/lastSeen", System.currentTimeMillis())
+            delay(20000)
         }
     }
 
@@ -150,33 +133,45 @@ fun MainScreen(
     LaunchedEffect(Unit) {
         val uid = FirebaseClient.currentUid ?: return@LaunchedEffect
         val gson = Gson()
+        delay(1000) // Increase delay to allow token stability
 
-        FirebaseClient.startListener("users", onAuthError = { onLogout() }) { _, path, json ->
+        FirebaseClient.startListener("users", onAuthError = { 
+            // Silent auth retry logic is now in FirebaseClient, so we just log here
+            println("MainScreen: Auth issue on 'users' listener. Waiting for retry...")
+        }) { _, path, json ->
             scope.launch(Dispatchers.Main) {
                 if (json == "null") return@launch
-                if (path == "" || path == "/") {
-                    val type = object : TypeToken<Map<String, Map<String, Any>>>() {}.type
-                    val data: Map<String, Map<String, Any>>? = gson.fromJson(json, type)
-                    if (data != null) {
-                        usersList.clear()
-                        data.forEach { (key, value) -> if (key != uid) usersList.add(parseUserMap(key, value)) }
-                    }
-                } else {
-                    val key = path.split("/").firstOrNull { it.isNotEmpty() } ?: return@launch
-                    if (key != uid) {
-                        FirebaseClient.read("users/$key") { userJson ->
-                            if (userJson != null) {
-                                scope.launch(Dispatchers.Main) {
-                                    val valMap: Map<String, Any>? = gson.fromJson(userJson, object : TypeToken<Map<String, Any>>() {}.type)
-                                    if (valMap != null) {
-                                        val index = usersList.indexOfFirst { it.uid == key }
-                                        val updated = parseUserMap(key, valMap)
-                                        if (index != -1) usersList[index] = updated else usersList.add(updated)
+                try {
+                    if (path == "" || path == "/") {
+                        val type = object : TypeToken<Map<String, Map<String, Any>>>() {}.type
+                        val data: Map<String, Map<String, Any>>? = gson.fromJson(json, type)
+                        if (data != null) {
+                            usersList.clear()
+                            data.forEach { (key, value) -> if (key != uid) usersList.add(parseUserMap(key, value)) }
+                        }
+                    } else {
+                        val key = path.split("/").firstOrNull { it.isNotEmpty() } ?: return@launch
+                        if (key != uid) {
+                            FirebaseClient.read("users/$key") { userJson ->
+                                if (userJson != null) {
+                                    scope.launch(Dispatchers.Main) {
+                                        try {
+                                            val valMap: Map<String, Any>? = gson.fromJson(userJson, object : TypeToken<Map<String, Any>>() {}.type)
+                                            if (valMap != null) {
+                                                val index = usersList.indexOfFirst { it.uid == key }
+                                                val updated = parseUserMap(key, valMap)
+                                                if (index != -1) usersList[index] = updated else usersList.add(updated)
+                                            }
+                                        } catch (e: Exception) {
+                                            println("MainScreen: Error parsing individual user update: ${e.message}")
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                } catch (e: Exception) {
+                    println("MainScreen: JSON structure mismatch on 'users' listener. Path: $path. Error: ${e.message}")
                 }
             }
         }
@@ -197,8 +192,11 @@ fun MainScreen(
     LaunchedEffect(Unit) {
         val uid = FirebaseClient.currentUid ?: return@LaunchedEffect
         val gson = Gson()
+        delay(1000) // Longer stagger for calls
         
-        FirebaseClient.startListener("calls/$uid", onAuthError = { onLogout() }) { _, _, json ->
+        FirebaseClient.startListener("calls/$uid", onAuthError = { 
+            println("MainScreen: Auth error on 'calls' listener. Ignoring to prevent kick-out.")
+        }) { _, _, json ->
             scope.launch(Dispatchers.Main) {
                 if (json == "null") {
                     // Only go IDLE if we were in an INCOMING or ONGOING state where we were the receiver
@@ -211,19 +209,13 @@ fun MainScreen(
                     try {
                         val data: CallData? = gson.fromJson(json, CallData::class.java)
                         if (data != null && data.callerId.isNotEmpty()) {
-                            val isFresh = System.currentTimeMillis() - data.timestamp < 30000
-                            if (isFresh || data.status == "accepted") {
-                                // We are the receiver
-                                if (data.status == "ringing") {
-                                    activeCallData = data
-                                    callState = CallState.INCOMING
-                                } else if (data.status == "accepted") {
-                                    activeCallData = data
-                                    callState = CallState.ONGOING
-                                }
-                            } else {
-                                // Automatically clean up stale incoming calls
-                                FirebaseClient.delete("calls/$uid")
+                            // Removed strict time-sync check which was blocking calls on different device clocks
+                            if (data.status == "ringing") {
+                                activeCallData = data
+                                callState = CallState.INCOMING
+                            } else if (data.status == "accepted") {
+                                activeCallData = data
+                                callState = CallState.ONGOING
                             }
                         }
                     } catch (e: Exception) {
@@ -251,11 +243,28 @@ fun MainScreen(
     // Outgoing Call Monitor (Only active during OUTGOING or ONGOING as caller)
     LaunchedEffect(callState) {
         val uid = FirebaseClient.currentUid
+        if (callState == CallState.OUTGOING) {
+            // Auto-cancel call after 40 seconds if not answered
+            scope.launch {
+                delay(40000)
+                if (callState == CallState.OUTGOING) {
+                    println("MainScreen: Call timed out after 40s")
+                    activeCallData?.let { data ->
+                        FirebaseClient.delete("calls/${data.receiverId}")
+                    }
+                    callState = CallState.IDLE
+                    activeCallData = null
+                }
+            }
+        }
+
         if (callState == CallState.OUTGOING || (callState == CallState.ONGOING && activeCallData?.callerId == uid)) {
             val receiverUid = activeCallData?.receiverId ?: return@LaunchedEffect
             val gson = Gson()
             
-            FirebaseClient.startListener("calls/$receiverUid", onAuthError = { onLogout() }) { _, _, json ->
+            FirebaseClient.startListener("calls/$receiverUid", onAuthError = { 
+                println("MainScreen: Auth error on outgoing 'calls' listener. Ignoring.")
+            }) { _, _, json ->
                 scope.launch(Dispatchers.Main) {
                     if (json == "null") {
                         callState = CallState.IDLE
@@ -275,20 +284,63 @@ fun MainScreen(
         }
     }
 
+    var activeChatListenerPath by remember { mutableStateOf<String?>(null) }
+
     LaunchedEffect(selectedUser) {
-        val uid = FirebaseClient.currentUid ?: return@LaunchedEffect
-        val receiver = selectedUser
+        // 1. Immediately clear and stop old listener for instant UI response
+        activeChatListenerPath?.let { FirebaseClient.stopListener(it) }
         messagesList.clear()
-        if (receiver != null) {
-            val chatId = if (uid < receiver.uid) "${uid}_${receiver.uid}" else "${receiver.uid}_$uid"
-            FirebaseClient.startListener("chats/$chatId", onAuthError = { onLogout() }) { _, _, _ ->
-                FirebaseClient.read("chats/$chatId") { json ->
-                    if (json != null && json != "null") {
-                        scope.launch(Dispatchers.Main) {
-                            val data: Map<String, ChatMessage>? = Gson().fromJson(json, object : TypeToken<Map<String, ChatMessage>>() {}.type)
+        
+        val uid = FirebaseClient.currentUid ?: return@LaunchedEffect
+        val receiver = selectedUser ?: return@LaunchedEffect
+        
+        val chatId = if (uid < receiver.uid) "${uid}_${receiver.uid}" else "${receiver.uid}_$uid"
+        val path = "chats/$chatId"
+        activeChatListenerPath = path
+
+        // 2. Start listener and use the direct stream data (no extra HTTP GET)
+        FirebaseClient.startListener(path, onAuthError = { 
+            println("MainScreen: Auth error on 'chats' listener. Ignoring.")
+        }) { event, childPath, json ->
+            scope.launch(Dispatchers.Default) {
+                if (json == "null") return@launch
+                try {
+                    val gson = Gson()
+                    if (childPath == "" || childPath == "/") {
+                        // Initial full load
+                        val type = object : TypeToken<Map<String, ChatMessage>>() {}.type
+                        val data: Map<String, ChatMessage>? = gson.fromJson(json, type)
+                        withContext(Dispatchers.Main) {
+                            messagesList.clear()
                             if (data != null) {
-                                messagesList.clear()
                                 messagesList.addAll(data.values.sortedBy { it.timestamp })
+                            }
+                        }
+                    } else {
+                        // Incremental update (new message)
+                        val newMsg = gson.fromJson(json, ChatMessage::class.java)
+                        withContext(Dispatchers.Main) {
+                            if (newMsg != null) {
+                                val index = messagesList.indexOfFirst { it.id == newMsg.id || it.timestamp == newMsg.timestamp }
+                                if (index != -1) {
+                                    messagesList[index] = newMsg
+                                } else {
+                                    messagesList.add(newMsg)
+                                    messagesList.sortBy { it.timestamp }
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Fallback: if incremental parsing fails, do a quick one-time read
+                    FirebaseClient.read(path) { fullJson ->
+                        if (fullJson != null && fullJson != "null") {
+                            scope.launch(Dispatchers.Main) {
+                                val data: Map<String, ChatMessage>? = Gson().fromJson(fullJson, object : TypeToken<Map<String, ChatMessage>>() {}.type)
+                                if (data != null) {
+                                    messagesList.clear()
+                                    messagesList.addAll(data.values.sortedBy { it.timestamp })
+                                }
                             }
                         }
                     }

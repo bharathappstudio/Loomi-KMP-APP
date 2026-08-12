@@ -37,41 +37,39 @@ fun main(args: Array<String>) {
 }
 
 fun startApp() = application {
-    var currentScreen by remember { mutableStateOf(SCREEN_LOGIN) }
-    var session by remember { mutableStateOf<SessionData?>(null) }
-    val scope = rememberCoroutineScope()
-    
-    LaunchedEffect(Unit) {
-        println("Main: Checking for existing session at ${SESSION_FILE.absolutePath}")
+    val initialSession = remember {
         if (SESSION_FILE.exists()) {
             try {
                 val json = SESSION_FILE.readText()
-                println("Main: Session file found. Attempting to parse...")
                 val data = Gson().fromJson(json, SessionData::class.java)
                 if (data != null) {
-                    println("Main: Session parsed for UID: ${data.uid}. Initializing Auth...")
                     FirebaseClient.initAuth(data.idToken, data.uid)
-                    FirebaseClient.read("users/${data.uid}/imageName") { dbImageName ->
-                        println("Main: Read imageName from Firebase: $dbImageName")
-                        val cleanDbImage = if (dbImageName == "null" || dbImageName == null) "" else dbImageName.replace("\"", "")
-                        
-                        if (cleanDbImage.isEmpty()) {
-                            println("Main: Profile incomplete. Navigating to Welcome Screen.")
-                            session = data
-                            currentScreen = SCREEN_WELCOME
-                        } else {
-                            session = data.copy(imageName = cleanDbImage)
-                            currentScreen = SCREEN_MAIN
-                            println("Main: Navigating to Main Screen.")
-                        }
-                    }
                 }
+                data
             } catch (e: Exception) {
-                println("Main: Error during session restoration: ${e.message}")
-                e.printStackTrace()
+                null
             }
-        } else {
-            println("Main: No session file found.")
+        } else null
+    }
+
+    var currentScreen by remember { 
+        mutableStateOf(if (initialSession != null) SCREEN_MAIN else SCREEN_LOGIN) 
+    }
+    var session by remember { mutableStateOf(initialSession) }
+    val scope = rememberCoroutineScope()
+    
+    LaunchedEffect(Unit) {
+        session?.let { data ->
+            println("Main: Session found. Initializing Auth for UID: ${data.uid}")
+            FirebaseClient.initAuth(data.idToken, data.uid)
+            
+            // Background update of session data without forcing screen changes
+            FirebaseClient.read("users/${data.uid}/imageName") { dbImageName ->
+                val cleanDbImage = if (dbImageName == "null" || dbImageName == null) "" else dbImageName.replace("\"", "")
+                if (cleanDbImage.isNotEmpty() && cleanDbImage != data.imageName) {
+                    session = data.copy(imageName = cleanDbImage)
+                }
+            }
         }
     }
 

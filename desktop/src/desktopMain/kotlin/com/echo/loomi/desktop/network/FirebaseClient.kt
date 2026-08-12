@@ -161,10 +161,11 @@ object FirebaseClient {
                     val response = call.execute()
                     
                     if (response.code == 401) {
-                        println("FirebaseClient: Auth error (401) on path: $path")
                         response.close()
-                        onAuthError()
-                        break // Stop retrying on auth error
+                        println("FirebaseClient: 401 Unauthorized on $path. Retrying in ${retryDelay/1000}s...")
+                        delay(retryDelay)
+                        retryDelay = (retryDelay * 2).coerceAtMost(30000L)
+                        continue
                     }
 
                     if (!response.isSuccessful) {

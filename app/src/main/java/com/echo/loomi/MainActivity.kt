@@ -128,8 +128,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             LoomiTheme {
                 val sosActive = showSOSOverlay.value
+                val callActive = isCallActiveGlobal.value
                 val blurValue by animateDpAsState(
-                    targetValue = if (sosActive) 30.dp else 0.dp,
+                    targetValue = if (sosActive || callActive) 30.dp else 0.dp,
                     animationSpec = tween(500),
                     label = "sos_blur"
                 )
@@ -191,6 +192,8 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 }
+
+                CallOverlay()
             }
         }
 

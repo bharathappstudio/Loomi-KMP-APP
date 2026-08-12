@@ -33,6 +33,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.draw.drawWithContent
@@ -103,6 +104,7 @@ class Setting : ComponentActivity() {
                         }
                     }
                 )
+                CallOverlay()
             }
         }
     }
@@ -115,6 +117,13 @@ fun SettingUI(onLogout: () -> Unit) {
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+
+    val callActive = isCallActiveGlobal.value
+    val blurValue by animateDpAsState(
+        targetValue = if (callActive) 30.dp else 0.dp,
+        animationSpec = tween(500),
+        label = "call_blur"
+    )
 
     // --- Dynamic System Bars Support ---
     val view = androidx.compose.ui.platform.LocalView.current
@@ -174,6 +183,7 @@ fun SettingUI(onLogout: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .blur(blurValue)
             .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.statusBars)
             .verticalScroll(scrollState)

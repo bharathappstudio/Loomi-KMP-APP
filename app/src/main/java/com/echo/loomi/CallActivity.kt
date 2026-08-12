@@ -1,5 +1,6 @@
 package com.echo.loomi
 
+import android.media.RingtoneManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -57,8 +58,12 @@ class CallActivity : ComponentActivity() {
                     receiverImage = receiverImage,
                     isIncoming = isIncoming,
                     onFinish = { 
+                        NotificationHelper.cancelCallNotification(this)
                         proximitySensorManager?.stop()
                         finish() 
+                    },
+                    onAnswer = {
+                        NotificationHelper.cancelCallNotification(this)
                     }
                 )
             }
@@ -78,7 +83,8 @@ fun CallScreenContent(
     receiverName: String,
     receiverImage: String,
     isIncoming: Boolean,
-    onFinish: () -> Unit
+    onFinish: () -> Unit,
+    onAnswer: () -> Unit
 ) {
     val auth = FirebaseAuth.getInstance()
     val currentUid = auth.currentUser?.uid ?: return
@@ -142,6 +148,18 @@ fun CallScreenContent(
         }
     }
 
+    // Auto-timeout for incoming calls (Receiver side)
+    LaunchedEffect(callState) {
+        if (callState == CallState.INCOMING) {
+            delay(40000)
+            if (callState == CallState.INCOMING) {
+                Log.d("CallActivity", "Incoming call timed out after 40s")
+                endCall(currentUid)
+                onFinish()
+            }
+        }
+    }
+
     fun formatDuration(seconds: Long): String {
         val mins = seconds / 60
         val secs = seconds % 60
@@ -170,6 +188,7 @@ fun CallScreenContent(
                     if (status == "accepted" && callState != CallState.ONGOING) {
                         callState = CallState.ONGOING
                         rtcManager.startLocalAudio()
+                        onAnswer() // Stop ringtone
                         if (!isIncoming) {
                             rtcManager.createOffer()
                         }
@@ -222,6 +241,7 @@ fun CallScreenContent(
                 database.child("calls").child(currentUid).child("status").setValue("accepted")
                 callState = CallState.ONGOING
                 rtcManager.startLocalAudio()
+                onAnswer() // Stop ringtone
             },
             onDecline = {
                 endCall(currentUid)

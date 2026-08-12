@@ -87,7 +87,8 @@ fun CallBottomSheet(
                         receiverImage
                     }
                 } else if (receiverImage.startsWith("http")) {
-                    receiverImage
+                    // Force 4K High Resolution for Google Profile Photos
+                    receiverImage.replace("s96-c", "s4096-c").replace("s400-c", "s4096-c")
                 } else if (receiverImage.isNotEmpty()) {
                     "file:///android_asset/$receiverImage"
                 } else {
@@ -210,10 +211,158 @@ fun CallBottomSheet(
     }
 }
 
+val outgoingCallReceiverUid = mutableStateOf<String?>(null)
+val currentCallPartnerName = mutableStateOf("")
+val currentCallPartnerImage = mutableStateOf("")
+val isCallActiveGlobal = mutableStateOf(false)
+
+@Composable
+fun CallOverlay() {
+    val auth = FirebaseAuth.getInstance()
+    val currentUid = auth.currentUser?.uid ?: return
+    val database = FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").reference
+
+    var showCallSheet by remember { mutableStateOf(false) }
+    var currentCallState by remember { mutableStateOf(CallState.IDLE) }
+    var activeCallData by remember { mutableStateOf<CallData?>(null) }
+
+    LaunchedEffect(showCallSheet) {
+        isCallActiveGlobal.value = showCallSheet
+    }
+
+    // Listen for incoming calls
+    DisposableEffect(currentUid) {
+        val incomingCallRef = database.child("calls").child(currentUid)
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val callData = snapshot.getValue(CallData::class.java)
+                if (callData != null) {
+                    activeCallData = callData
+                    when (callData.status) {
+                        "ringing" -> {
+                            currentCallState = CallState.INCOMING
+                            showCallSheet = true
+                        }
+                        "accepted" -> {
+                            currentCallState = CallState.ONGOING
+                            showCallSheet = true
+                        }
+                        "declined", "ended" -> {
+                            showCallSheet = false
+                            currentCallState = CallState.IDLE
+                            activeCallData = null
+                        }
+                    }
+                } else if (currentCallState == CallState.INCOMING || currentCallState == CallState.ONGOING) {
+                    if (outgoingCallReceiverUid.value == null) {
+                        showCallSheet = false
+                        currentCallState = CallState.IDLE
+                        activeCallData = null
+                    }
+                }
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        }
+        incomingCallRef.addValueEventListener(listener)
+        onDispose { incomingCallRef.removeEventListener(listener) }
+    }
+
+    // Listen for outgoing calls
+    val outgoingUid = outgoingCallReceiverUid.value
+    DisposableEffect(outgoingUid) {
+        if (outgoingUid == null) return@DisposableEffect onDispose {}
+        
+        val outgoingCallRef = database.child("calls").child(outgoingUid)
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val callData = snapshot.getValue(CallData::class.java)
+                if (callData != null) {
+                    activeCallData = callData
+                    when (callData.status) {
+                        "ringing" -> {
+                            currentCallState = CallState.OUTGOING
+                            showCallSheet = true
+                        }
+                        "accepted" -> {
+                            currentCallState = CallState.ONGOING
+                            showCallSheet = true
+                        }
+                        "declined", "ended" -> {
+                            showCallSheet = false
+                            currentCallState = CallState.IDLE
+                            activeCallData = null
+                            outgoingCallReceiverUid.value = null
+                        }
+                    }
+                } else {
+                    showCallSheet = false
+                    currentCallState = CallState.IDLE
+                    activeCallData = null
+                    outgoingCallReceiverUid.value = null
+                }
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        }
+        outgoingCallRef.addValueEventListener(listener)
+        onDispose { outgoingCallRef.removeEventListener(listener) }
+    }
+
+    if (showCallSheet) {
+        val partnerName = if (currentCallState == CallState.INCOMING) {
+            activeCallData?.callerName?.let { EncryptionUtils.decrypt(it) } ?: "Unknown"
+        } else {
+            currentCallPartnerName.value
+        }
+        
+        val partnerImage = if (currentCallState == CallState.INCOMING) {
+            activeCallData?.callerImage?.let { EncryptionUtils.decrypt(it) } ?: ""
+        } else {
+            currentCallPartnerImage.value
+        }
+
+        CallBottomSheet(
+            receiverName = partnerName,
+            receiverImage = partnerImage,
+            callState = currentCallState,
+            onAccept = {
+                database.child("calls").child(currentUid).child("status").setValue("accepted")
+                currentCallState = CallState.ONGOING
+            },
+            onDecline = {
+                endCall(currentUid)
+                showCallSheet = false
+                currentCallState = CallState.IDLE
+            },
+            onEnd = {
+                if (currentCallState == CallState.OUTGOING) {
+                    endCall(outgoingUid ?: "")
+                } else {
+                    endCall(currentUid)
+                }
+                showCallSheet = false
+                currentCallState = CallState.IDLE
+            },
+            onDismiss = {
+                if (currentCallState != CallState.ONGOING) {
+                    if (currentCallState == CallState.OUTGOING) endCall(outgoingUid ?: "")
+                    else if (currentCallState == CallState.INCOMING) endCall(currentUid)
+                    showCallSheet = false
+                    currentCallState = CallState.IDLE
+                }
+            }
+        )
+    }
+}
+
 fun startCall(receiverUid: String, receiverName: String, receiverImage: String) {
     val auth = FirebaseAuth.getInstance()
     val currentUid = auth.currentUser?.uid ?: return
     val database = FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").reference
+
+    // Update global state for CallOverlay
+    currentCallPartnerName.value = receiverName
+    currentCallPartnerImage.value = receiverImage
+    outgoingCallReceiverUid.value = receiverUid
 
     // Encrypt metadata for privacy
     val encryptedName = EncryptionUtils.encrypt(auth.currentUser?.displayName ?: "User")

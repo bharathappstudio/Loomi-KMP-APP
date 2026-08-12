@@ -8,6 +8,8 @@ import android.content.Intent
 import android.os.Build
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.Person
 import androidx.core.app.RemoteInput
@@ -23,7 +25,7 @@ import java.io.InputStream
 object NotificationHelper {
     private const val CHANNEL_ID = "loomi_messages"
     private const val CHANNEL_NAME = "Loomi Messages"
-    private const val CALL_CHANNEL_ID = "loomi_calls"
+    private const val CALL_CHANNEL_ID = "loomi_calls_v2"
     private const val CALL_CHANNEL_NAME = "Loomi Calls"
     private const val SERVICE_CHANNEL_ID = "loomi_system_sync"
     private const val SERVICE_CHANNEL_NAME = "Sync Process"
@@ -52,7 +54,11 @@ object NotificationHelper {
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Notifications for incoming calls"
-                setSound(null, null) 
+                val audioAttributes = AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .build()
+                setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE), audioAttributes)
                 enableVibration(true)
             }
             manager.createNotificationChannel(callChannel)
@@ -283,10 +289,17 @@ object NotificationHelper {
             .setFullScreenIntent(pendingIntent, true)
             .setAutoCancel(true)
             .setOngoing(true)
+            .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE))
+            .setVibrate(longArrayOf(0, 1000, 500, 1000))
             .build()
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(notificationId, notification)
+    }
+
+    fun cancelCallNotification(context: Context) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.cancel(1001)
     }
 
     private suspend fun getLargeIcon(context: Context, senderImage: String): Bitmap? {

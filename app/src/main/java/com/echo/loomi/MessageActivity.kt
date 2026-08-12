@@ -155,7 +155,7 @@ class MessageActivity : ComponentActivity() {
                 }
 
                 val blurValue by animateDpAsState(
-                    targetValue = if (sosActive) 30.dp else if (selectedImage.value != null) 20.dp else 0.dp,
+                    targetValue = if (sosActive || isCallActiveGlobal.value) 30.dp else if (selectedImage.value != null) 20.dp else 0.dp,
                     animationSpec = tween(300, easing = FastOutSlowInEasing),
                     label = "sos_blur"
                 )

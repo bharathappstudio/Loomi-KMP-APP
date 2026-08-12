@@ -212,18 +212,31 @@ class MessageListenerService : Service() {
         if (callsListener != null) return
 
         callsListener = object : ValueEventListener {
+            private var lastCallId: String? = null
+            private var lastStatus: String? = null
+
             override fun onDataChange(snapshot: DataSnapshot) {
                 val callData = snapshot.getValue(CallData::class.java)
-                if (callData != null && callData.status == "ringing") {
-                    val decryptedName = EncryptionUtils.decrypt(callData.callerName)
-                    val decryptedImage = EncryptionUtils.decrypt(callData.callerImage)
-                    NotificationHelper.showCallNotification(
-                        this@MessageListenerService,
-                        callData.callerId,
-                        decryptedName,
-                        decryptedImage
-                    )
+                val status = callData?.status
+                val callerId = callData?.callerId
+
+                if (callData != null && status == "ringing") {
+                    // Only trigger notification if it's a NEW call or status just became ringing
+                    if (lastCallId != callerId || lastStatus != "ringing") {
+                        val decryptedName = EncryptionUtils.decrypt(callData.callerName)
+                        val decryptedImage = EncryptionUtils.decrypt(callData.callerImage)
+                        NotificationHelper.showCallNotification(
+                            this@MessageListenerService,
+                            callData.callerId,
+                            decryptedName,
+                            decryptedImage
+                        )
+                    }
+                } else {
+                    NotificationHelper.cancelCallNotification(this@MessageListenerService)
                 }
+                lastCallId = callerId
+                lastStatus = status
             }
             override fun onCancelled(error: DatabaseError) {}
         }
