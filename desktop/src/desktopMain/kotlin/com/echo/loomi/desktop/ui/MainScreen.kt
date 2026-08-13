@@ -243,12 +243,24 @@ fun MainScreen(
     // Outgoing Call Monitor (Only active during OUTGOING or ONGOING as caller)
     LaunchedEffect(callState) {
         val uid = FirebaseClient.currentUid
-        if (callState == CallState.OUTGOING) {
-            // Auto-cancel call after 40 seconds if not answered
+        if (callState == CallState.INCOMING) {
+            // Auto-cancel incoming call after 90 seconds if not answered
             scope.launch {
-                delay(40000)
+                delay(90000)
+                if (callState == CallState.INCOMING) {
+                    FirebaseClient.delete("calls/$uid")
+                    callState = CallState.IDLE
+                    activeCallData = null
+                }
+            }
+        }
+
+        if (callState == CallState.OUTGOING) {
+            // Auto-cancel call after 90 seconds if not answered
+            scope.launch {
+                delay(90000)
                 if (callState == CallState.OUTGOING) {
-                    println("MainScreen: Call timed out after 40s")
+                    println("MainScreen: Call timed out after 90s")
                     activeCallData?.let { data ->
                         FirebaseClient.delete("calls/${data.receiverId}")
                     }

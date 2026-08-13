@@ -1,11 +1,18 @@
 package com.echo.loomi
 
+import android.media.MediaPlayer
+import android.media.RingtoneManager
 import android.util.Base64
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +26,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.google.firebase.auth.FirebaseAuth
@@ -46,7 +54,6 @@ data class CallData(
     val iceCandidates: Map<String, Map<String, Any>>? = null
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CallBottomSheet(
     receiverName: String,
@@ -55,155 +62,175 @@ fun CallBottomSheet(
     onAccept: () -> Unit,
     onDecline: () -> Unit,
     onEnd: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit = {}
 ) {
     val isDark = isSystemInDarkTheme()
-    val sheetState = rememberModalBottomSheetState(
-        confirmValueChange = { false } // Prevent dismissal by swipe
-    )
-
-    // Trigger FCM wakeup for the call (on receiver's side, logic should be in startCall)
-
-    ModalBottomSheet(
-        onDismissRequest = { /* Do nothing to prevent dismissal on outside tap */ },
-        sheetState = sheetState,
-        containerColor = Color.Transparent,
-        scrimColor = Color.Transparent,
-        dragHandle = null
+    
+    // This is a custom persistent overlay that looks like a bottom sheet
+    // but cannot be dismissed by swipe, back, or outside tap.
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(1000f)
+            .clickable(enabled = true, onClick = {}) // Block clicks to background
     ) {
-        Column(
+        // Scrim removed for "no color" look
+
+        // Top Image Overlay (Apple/Snap style update)
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Image(
+                painter = painterResource(id = R.drawable.grop_chart),
+                contentDescription = "call",
+                modifier = Modifier.size(300.dp).padding(top = 90.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
+
+        // "Sheet" Content
+        Box(
             modifier = Modifier
+                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(bottom = 60.dp, top = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                .background(Color.Transparent) // No color, use background blur only
         ) {
-            // User Image
-            val imageModel = remember(receiverImage) {
-                if (receiverImage.startsWith("data:image")) {
-                    try {
-                        val base64Data = receiverImage.substringAfter("base64,")
-                        Base64.decode(base64Data, Base64.DEFAULT)
-                    } catch (e: Exception) {
-                        receiverImage
-                    }
-                } else if (receiverImage.startsWith("http")) {
-                    // Force 4K High Resolution for Google Profile Photos
-                    receiverImage.replace("s96-c", "s4096-c").replace("s400-c", "s4096-c")
-                } else if (receiverImage.isNotEmpty()) {
-                    "file:///android_asset/$receiverImage"
-                } else {
-                    R.drawable.logo
-                }
-            }
-
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(imageModel)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = null,
+            Column(
                 modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .border(2.dp, if (isDark) Color.White.copy(0.2f) else Color.Black.copy(alpha = 0.1f), CircleShape),
-                contentScale = ContentScale.Crop,
-                error = painterResource(R.drawable.logo)
-            )
+                    .fillMaxWidth()
+                    .padding(bottom = 60.dp, top = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Drag handle removed as requested
 
-            Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-            // User Name
-            Text(
-                text = receiverName,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Call Status & Timer
-            var ticks by remember { mutableLongStateOf(0L) }
-            if (callState == CallState.ONGOING) {
-                LaunchedEffect(Unit) {
-                    while (true) {
-                        delay(1000)
-                        ticks++
+                // User Image
+                val imageModel = remember(receiverImage) {
+                    if (receiverImage.startsWith("data:image")) {
+                        try {
+                            val base64Data = receiverImage.substringAfter("base64,")
+                            Base64.decode(base64Data, Base64.DEFAULT)
+                        } catch (e: Exception) {
+                            receiverImage
+                        }
+                    } else if (receiverImage.startsWith("http")) {
+                        receiverImage.replace("s96-c", "s4096-c").replace("s400-c", "s4096-c")
+                    } else if (receiverImage.isNotEmpty()) {
+                        "file:///android_asset/$receiverImage"
+                    } else {
+                        R.drawable.logo
                     }
                 }
-            }
 
-            Text(
-                text = when (callState) {
-                    CallState.INCOMING -> "Incoming call..."
-                    CallState.OUTGOING -> "Calling..."
-                    CallState.ONGOING -> {
-                        val minutes = ticks / 60
-                        val seconds = ticks % 60
-                        String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(imageModel)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(CircleShape)
+                        .border(2.dp, if (isDark) Color.White.copy(0.2f) else Color.Black.copy(alpha = 0.1f), CircleShape),
+                    contentScale = ContentScale.Crop,
+                    error = painterResource(R.drawable.logo)
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // User Name
+                Text(
+                    text = receiverName,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDark) Color.White else Color.Black
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Call Status & Timer
+                var ticks by remember { mutableLongStateOf(0L) }
+                if (callState == CallState.ONGOING) {
+                    LaunchedEffect(Unit) {
+                        while (true) {
+                            delay(1000)
+                            ticks++
+                        }
                     }
-                    CallState.ENDED -> "Call ended"
-                    CallState.IDLE -> ""
-                },
-                fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
+                }
 
-            Spacer(modifier = Modifier.height(40.dp))
+                Text(
+                    text = when (callState) {
+                        CallState.INCOMING -> "Incoming call..."
+                        CallState.OUTGOING -> "Calling..."
+                        CallState.ONGOING -> {
+                            val minutes = ticks / 60
+                            val seconds = ticks % 60
+                            String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+                        }
+                        CallState.ENDED -> "Call ended"
+                        CallState.IDLE -> ""
+                    },
+                    fontSize = 16.sp,
+                    color = (if (isDark) Color.White else Color.Black).copy(alpha = 0.6f)
+                )
 
-            // Action Buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (callState == CallState.INCOMING) {
-                    // Decline Button
-                    IconButton(
-                        onClick = onDecline,
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFFF5252))
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.call),
-                            contentDescription = "Decline",
-                            tint = Color.White,
-                            modifier = Modifier.size(32.dp)
-                        )
-                    }
+                Spacer(modifier = Modifier.height(40.dp))
 
-                    // Accept Button
-                    IconButton(
-                        onClick = onAccept,
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF4CAF50))
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.call),
-                            contentDescription = "Accept",
-                            tint = Color.White,
-                            modifier = Modifier.size(32.dp)
-                        )
-                    }
-                } else if (callState == CallState.OUTGOING || callState == CallState.ONGOING) {
-                    // End Call Button
-                    IconButton(
-                        onClick = onEnd,
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFFF5252))
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.call),
-                            contentDescription = "End Call",
-                            tint = Color.White,
-                            modifier = Modifier.size(32.dp)
-                        )
+                // Action Buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (callState == CallState.INCOMING) {
+                        // Decline Button
+                        IconButton(
+                            onClick = onDecline,
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFF5252))
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.call),
+                                contentDescription = "Decline",
+                                tint = Color.White,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+
+                        // Accept Button
+                        IconButton(
+                            onClick = onAccept,
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF4CAF50))
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.call),
+                                contentDescription = "Accept",
+                                tint = Color.White,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    } else if (callState == CallState.OUTGOING || callState == CallState.ONGOING) {
+                        // End Call Button
+                        IconButton(
+                            onClick = onEnd,
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFF5252))
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.call),
+                                contentDescription = "End Call",
+                                tint = Color.White,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -215,19 +242,66 @@ val outgoingCallReceiverUid = mutableStateOf<String?>(null)
 val currentCallPartnerName = mutableStateOf("")
 val currentCallPartnerImage = mutableStateOf("")
 val isCallActiveGlobal = mutableStateOf(false)
+val currentCallStateGlobal = mutableStateOf(CallState.IDLE)
+val activeCallDataGlobal = mutableStateOf<CallData?>(null)
+var isAppInForeground = false
+
+private var globalRingtonePlayer: MediaPlayer? = null
 
 @Composable
 fun CallOverlay() {
     val auth = FirebaseAuth.getInstance()
     val currentUid = auth.currentUser?.uid ?: return
     val database = FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").reference
+    val context = LocalContext.current
 
-    var showCallSheet by remember { mutableStateOf(false) }
-    var currentCallState by remember { mutableStateOf(CallState.IDLE) }
-    var activeCallData by remember { mutableStateOf<CallData?>(null) }
+    var showCallSheet by remember { isCallActiveGlobal }
+    var currentCallState by remember { currentCallStateGlobal }
+    var activeCallData by remember { activeCallDataGlobal }
 
-    LaunchedEffect(showCallSheet) {
-        isCallActiveGlobal.value = showCallSheet
+    // Global BackHandler to prevent closing activity/app during call
+    BackHandler(enabled = showCallSheet) {
+        // Do nothing - blocks back button during call
+    }
+
+    // Ringtone Management (Singleton-like approach to prevent double playing)
+    DisposableEffect(Unit) {
+        if (globalRingtonePlayer == null) {
+            globalRingtonePlayer = try {
+                MediaPlayer.create(context, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)).apply {
+                    isLooping = true
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+        onDispose {
+            // We don't release here because other activities might still need it
+        }
+    }
+
+    LaunchedEffect(currentCallState) {
+        if (currentCallState == CallState.INCOMING) {
+            if (globalRingtonePlayer?.isPlaying == false) {
+                globalRingtonePlayer?.start()
+            }
+            // 90s Ringing Timeout
+            delay(90000)
+            if (currentCallState == CallState.INCOMING) {
+                endCall(currentUid)
+            }
+        } else if (currentCallState == CallState.OUTGOING) {
+            // Outgoing also times out after 90s if not answered
+            delay(90000)
+            if (currentCallState == CallState.OUTGOING) {
+                outgoingCallReceiverUid.value?.let { endCall(it) }
+            }
+        } else {
+            if (globalRingtonePlayer?.isPlaying == true) {
+                globalRingtonePlayer?.pause()
+                globalRingtonePlayer?.seekTo(0)
+            }
+        }
     }
 
     // Listen for incoming calls
@@ -307,7 +381,11 @@ fun CallOverlay() {
         onDispose { outgoingCallRef.removeEventListener(listener) }
     }
 
-    if (showCallSheet) {
+    AnimatedVisibility(
+        visible = showCallSheet,
+        enter = fadeIn(),
+        exit = fadeOut()
+    ) {
         val partnerName = if (currentCallState == CallState.INCOMING) {
             activeCallData?.callerName?.let { EncryptionUtils.decrypt(it) } ?: "Unknown"
         } else {
@@ -332,6 +410,7 @@ fun CallOverlay() {
                 endCall(currentUid)
                 showCallSheet = false
                 currentCallState = CallState.IDLE
+                activeCallData = null
             },
             onEnd = {
                 if (currentCallState == CallState.OUTGOING) {
@@ -341,14 +420,8 @@ fun CallOverlay() {
                 }
                 showCallSheet = false
                 currentCallState = CallState.IDLE
-            },
-            onDismiss = {
-                if (currentCallState != CallState.ONGOING) {
-                    if (currentCallState == CallState.OUTGOING) endCall(outgoingUid ?: "")
-                    else if (currentCallState == CallState.INCOMING) endCall(currentUid)
-                    showCallSheet = false
-                    currentCallState = CallState.IDLE
-                }
+                activeCallData = null
+                outgoingCallReceiverUid.value = null
             }
         )
     }

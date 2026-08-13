@@ -221,16 +221,22 @@ class MessageListenerService : Service() {
                 val callerId = callData?.callerId
 
                 if (callData != null && status == "ringing") {
-                    // Only trigger notification if it's a NEW call or status just became ringing
-                    if (lastCallId != callerId || lastStatus != "ringing") {
-                        val decryptedName = EncryptionUtils.decrypt(callData.callerName)
-                        val decryptedImage = EncryptionUtils.decrypt(callData.callerImage)
-                        NotificationHelper.showCallNotification(
-                            this@MessageListenerService,
-                            callData.callerId,
-                            decryptedName,
-                            decryptedImage
-                        )
+                    // Only trigger notification if app is NOT in foreground
+                    if (!isAppInForeground) {
+                        // Only trigger notification if it's a NEW call or status just became ringing
+                        if (lastCallId != callerId || lastStatus != "ringing") {
+                            val decryptedName = EncryptionUtils.decrypt(callData.callerName)
+                            val decryptedImage = EncryptionUtils.decrypt(callData.callerImage)
+                            NotificationHelper.showCallNotification(
+                                this@MessageListenerService,
+                                callData.callerId,
+                                decryptedName,
+                                decryptedImage
+                            )
+                        }
+                    } else {
+                        // If app is in foreground, ensure any old notification is gone
+                        NotificationHelper.cancelCallNotification(this@MessageListenerService)
                     }
                 } else {
                     NotificationHelper.cancelCallNotification(this@MessageListenerService)

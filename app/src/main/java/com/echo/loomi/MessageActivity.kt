@@ -183,6 +183,8 @@ class MessageActivity : ComponentActivity() {
                         )
                     }
 
+                    CallOverlay()
+
                     // Full Screen HD Image Viewer (Smooth & Fast Transition)
                     AnimatedVisibility(
                         visible = selectedImage.value != null,
@@ -259,11 +261,6 @@ fun MessageScreen(
     var isReceiverTyping by remember { mutableStateOf(false) }
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
-
-    // Call state
-    var showCallSheet by remember { mutableStateOf(false) }
-    var currentCallState by remember { mutableStateOf(CallState.IDLE) }
-    var activeCallData by remember { mutableStateOf<CallData?>(null) }
 
     val context = LocalContext.current
 
@@ -387,72 +384,6 @@ fun MessageScreen(
         }
     }
 
-    // Listen for incoming calls for the current user
-    DisposableEffect(currentUid) {
-        val incomingCallRef = database.child("calls").child(currentUid)
-        val listener = object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val callData = snapshot.getValue(CallData::class.java)
-                if (callData != null) {
-                    activeCallData = callData
-                    when (callData.status) {
-                        "ringing" -> {
-                            currentCallState = CallState.INCOMING
-                            showCallSheet = true
-                        }
-                        "accepted" -> {
-                            currentCallState = CallState.ONGOING
-                        }
-                        "declined", "ended" -> {
-                            showCallSheet = false
-                            currentCallState = CallState.IDLE
-                            activeCallData = null
-                        }
-                    }
-                } else if (currentCallState == CallState.INCOMING || currentCallState == CallState.ONGOING) {
-                    showCallSheet = false
-                    currentCallState = CallState.IDLE
-                    activeCallData = null
-                }
-            }
-            override fun onCancelled(error: DatabaseError) {}
-        }
-        incomingCallRef.addValueEventListener(listener)
-        onDispose { incomingCallRef.removeEventListener(listener) }
-    }
-
-    // Listen for outgoing call status (on the receiver's node)
-    DisposableEffect(showCallSheet, currentCallState) {
-        var outgoingListener: ValueEventListener? = null
-        val outgoingCallRef = database.child("calls").child(receiverUid)
-        
-        if (currentCallState == CallState.OUTGOING) {
-            outgoingListener = object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    val status = snapshot.child("status").getValue(String::class.java)
-                    if (status == "accepted") {
-                        currentCallState = CallState.ONGOING
-                    } else if (status == null || status == "declined" || status == "ended") {
-                        showCallSheet = false
-                        currentCallState = CallState.IDLE
-                        activeCallData = null
-                    }
-                }
-                override fun onCancelled(error: DatabaseError) {}
-            }
-            outgoingCallRef.addValueEventListener(outgoingListener)
-        }
-        onDispose {
-            outgoingListener?.let { outgoingCallRef.removeEventListener(it) }
-        }
-    }
-
-    val blurProgress by animateFloatAsState(
-        targetValue = if (showCallSheet) 1f else 0f,
-        animationSpec = tween(300),
-        label = "call_blur"
-    )
-
     Box(modifier = Modifier.fillMaxSize()) {
         // Background
         val bgColor = if (isDark) MaterialTheme.colorScheme.background else Color(0xFFFFFBF6)
@@ -461,7 +392,6 @@ fun MessageScreen(
         Column(modifier = Modifier
             .fillMaxSize()
             .imePadding()
-            .blur(lerpDp(0.dp, 25.dp, blurProgress))
         ) {
             MessageTopBar(
                 receiverName = receiverName,
@@ -470,8 +400,6 @@ fun MessageScreen(
                 onBack = onBack,
                 onCallClick = {
                     startCall(receiverUid, receiverName, receiverImage)
-                    currentCallState = CallState.OUTGOING
-                    showCallSheet = true
                 }
             )
             
@@ -524,43 +452,6 @@ fun MessageScreen(
                     galleryLauncher.launch("image/*")
                 },
                 modifier = Modifier.navigationBarsPadding().padding(bottom = 8.dp)
-            )
-        }
-
-        if (showCallSheet) {
-            val decryptedCallerName = activeCallData?.callerName?.let { EncryptionUtils.decrypt(it) } ?: "Unknown"
-            val decryptedCallerImage = activeCallData?.callerImage?.let { EncryptionUtils.decrypt(it) } ?: receiverImage
-
-            CallBottomSheet(
-                receiverName = if (currentCallState == CallState.INCOMING) decryptedCallerName else receiverName,
-                receiverImage = if (currentCallState == CallState.INCOMING) decryptedCallerImage else receiverImage,
-                callState = currentCallState,
-                onAccept = {
-                    database.child("calls").child(currentUid).child("status").setValue("accepted")
-                    currentCallState = CallState.ONGOING
-                },
-                onDecline = {
-                    endCall(currentUid)
-                    showCallSheet = false
-                    currentCallState = CallState.IDLE
-                },
-                onEnd = {
-                    if (currentCallState == CallState.OUTGOING) {
-                        endCall(receiverUid)
-                    } else {
-                        endCall(currentUid)
-                    }
-                    showCallSheet = false
-                    currentCallState = CallState.IDLE
-                },
-                onDismiss = {
-                    if (currentCallState != CallState.ONGOING) {
-                        if (currentCallState == CallState.OUTGOING) endCall(receiverUid)
-                        else if (currentCallState == CallState.INCOMING) endCall(currentUid)
-                        showCallSheet = false
-                        currentCallState = CallState.IDLE
-                    }
-                }
             )
         }
     }
