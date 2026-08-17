@@ -538,6 +538,7 @@ fun CameraView(isActive: Boolean, onBack: () -> Unit, onImageCaptured: (Uri) -> 
                                     uploadToStory(context, selectedPreviewUri!!, selectedTrackId, selectedTrackName) {
                                         isUploading = false
                                         selectedPreviewUri = null // Reset after upload
+                                        onBack() // Auto go back to MainActivity
                                     }
                                     onImageCaptured(selectedPreviewUri!!)
                                 } else {
@@ -549,6 +550,7 @@ fun CameraView(isActive: Boolean, onBack: () -> Unit, onImageCaptured: (Uri) -> 
                                             scope.launch {
                                                 uploadToStory(context, uri, selectedTrackId, selectedTrackName) {
                                                     isUploading = false
+                                                    onBack() // Auto go back to MainActivity
                                                 }
                                                 onImageCaptured(uri)
                                             }

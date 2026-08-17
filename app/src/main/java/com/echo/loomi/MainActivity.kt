@@ -687,7 +687,18 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
         onRefresh = {
             isRefreshing = true
             scope.launch {
-                delay(3000)
+                val database = FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").reference
+                val uid = currentUser?.uid ?: return@launch
+                
+                // Force reload current user's data
+                database.child("users").child(uid).get().addOnSuccessListener { snapshot ->
+                    if (snapshot.exists()) {
+                        currentUserImage = snapshot.child("imageName").getValue(String::class.java) ?: ""
+                    }
+                }
+                
+                // Wait a bit for visuals
+                delay(1500)
                 isRefreshing = false
             }
         },

@@ -188,8 +188,8 @@ class MessageActivity : ComponentActivity() {
                     // Full Screen HD Image Viewer (Smooth & Fast Transition)
                     AnimatedVisibility(
                         visible = selectedImage.value != null,
-                        enter = fadeIn(tween(300)) + scaleIn(tween(300, easing = FastOutSlowInEasing), initialScale = 0.92f),
-                        exit = fadeOut(tween(250)) + scaleOut(tween(250), targetScale = 0.92f)
+                        enter = fadeIn(tween(300)) + scaleIn(tween(400, easing = FastOutSlowInEasing), initialScale = 0.8f),
+                        exit = fadeOut(tween(300)) + scaleOut(tween(300), targetScale = 0.8f)
                     ) {
                         selectedImage.value?.let { base64 ->
                             val bitmap = remember(base64) {
@@ -208,15 +208,25 @@ class MessageActivity : ComponentActivity() {
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (bitmap != null) {
-                                    Image(
-                                        bitmap = bitmap,
-                                        contentDescription = "Full Screen Image",
+                                    Box(
                                         modifier = Modifier
-                                            .fillMaxWidth(0.92f)
+                                            .fillMaxSize(0.9f)
+                                            .wrapContentSize(Alignment.Center)
+                                            .aspectRatio(bitmap.width.toFloat() / bitmap.height.toFloat())
                                             .clip(RoundedCornerShape(24.dp))
-                                            .border(2.dp, Color.White.copy(alpha = 8f), RoundedCornerShape(24.dp)),
-                                        contentScale = ContentScale.Fit
-                                    )
+                                            .border(
+                                                2.dp,
+                                                Color.White.copy(alpha = 100f),
+                                                RoundedCornerShape(24.dp)
+                                            )
+                                    ) {
+                                        Image(
+                                            bitmap = bitmap,
+                                            contentDescription = "Full Screen Image",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Fit
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -307,15 +317,15 @@ fun MessageScreen(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
         if (bitmap != null) {
-            // Optimized for fast chat: 800px is perfect for messaging
-            val maxDim = 800
+            // Real Quality Upload: 2000px max dimension
+            val maxDim = 2000
             val ratio = bitmap.width.toFloat() / bitmap.height.toFloat()
             val finalWidth = if (bitmap.width > bitmap.height) maxDim else (maxDim * ratio).toInt()
             val finalHeight = if (bitmap.width > bitmap.height) (maxDim / ratio).toInt() else maxDim
             val rescaledBitmap = Bitmap.createScaledBitmap(bitmap, finalWidth, finalHeight, true)
 
             val outputStream = ByteArrayOutputStream()
-            rescaledBitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
+            rescaledBitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
             val base64Image = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
             
             val msgId = database.child("chats").child(chatId).push().key ?: ""
@@ -337,15 +347,15 @@ fun MessageScreen(
             val inputStream = context.contentResolver.openInputStream(it)
             val bitmap = BitmapFactory.decodeStream(inputStream)
             if (bitmap != null) {
-                // Optimized for fast chat: 800px max dimension
-                val maxDim = 800
+                // Real Quality Upload: 2000px max dimension
+                val maxDim = 2000
                 val ratio = bitmap.width.toFloat() / bitmap.height.toFloat()
                 val finalWidth = if (bitmap.width > bitmap.height) maxDim else (maxDim * ratio).toInt()
                 val finalHeight = if (bitmap.width > bitmap.height) (maxDim / ratio).toInt() else maxDim
                 val rescaledBitmap = Bitmap.createScaledBitmap(bitmap, finalWidth, finalHeight, true)
 
                 val outputStream = ByteArrayOutputStream()
-                rescaledBitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
+                rescaledBitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
                 val base64Image = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
                 
                 val msgId = database.child("chats").child(chatId).push().key ?: ""
@@ -707,7 +717,12 @@ fun ChatBubble(msg: ChatMessage, isMe: Boolean, onImageClick: (String) -> Unit) 
             modifier = if (isImage) {
                 Modifier
                     .widthIn(max = 180.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(20.dp))
+                    .border(
+                        1.dp,
+                        Color.White.copy(alpha = 1f),
+                        RoundedCornerShape(20.dp)
+                    )
                     .clickable { onImageClick(msg.message.substring(4)) }
             } else {
                 Modifier
@@ -724,14 +739,26 @@ fun ChatBubble(msg: ChatMessage, isMe: Boolean, onImageClick: (String) -> Unit) 
                 val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
                 
                 if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "Image message",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 240.dp),
-                        contentScale = ContentScale.FillWidth
-                    )
+                    Box {
+                        Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = "Image message",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 240.dp),
+                            contentScale = ContentScale.FillWidth
+                        )
+                        
+                        Icon(
+                            painter = painterResource(id = R.drawable.hd),
+                            contentDescription = "HD",
+                            tint = Color.White,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(8.dp)
+                                .size(20.dp)
+                        )
+                    }
                 }
             } else {
                 // End-to-End Decryption
