@@ -5,7 +5,6 @@ import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -42,7 +41,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import coil.compose.AsyncImage
 import com.echo.loomi.ui.theme.LoomiTheme
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -50,6 +48,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 class Setting : ComponentActivity() {
 
@@ -125,6 +124,13 @@ fun SettingUI(onLogout: () -> Unit) {
         label = "call_blur"
     )
 
+    var userBlurValue by remember { mutableFloatStateOf(0f) }
+    val animatedUserBlur by animateFloatAsState(
+        targetValue = userBlurValue,
+        animationSpec = tween(300),
+        label = "user_blur"
+    )
+
     // --- Dynamic System Bars Support ---
     val view = androidx.compose.ui.platform.LocalView.current
     if (!view.isInEditMode) {
@@ -180,16 +186,17 @@ fun SettingUI(onLogout: () -> Unit) {
     val c2 by animateColorAsState(googleColors[colorIndex2], animationSpec = tween(600), label = "c2")
     val c3 by animateColorAsState(googleColors[colorIndex3], animationSpec = tween(600), label = "c3")
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .blur(blurValue)
-            .background(MaterialTheme.colorScheme.background)
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .verticalScroll(scrollState)
-            .navigationBarsPadding()
-            .padding(16.dp)
-    ) {
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .blur(blurValue + animatedUserBlur.dp)
+                .clickable(enabled = userBlurValue > 0f) { userBlurValue = 0f }
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .verticalScroll(scrollState)
+                .navigationBarsPadding()
+                .padding(16.dp)
+        ) {
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
@@ -307,10 +314,49 @@ fun SettingUI(onLogout: () -> Unit) {
         SettingRow("About") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/bharathappstudio"))) }
         SettingRow("Updating LOOMI") { context.startActivity(Intent(context, EchoActivity::class.java)) }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(180.dp)) // Space for Bottom Controls
+    }
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-            TextButton(onClick = onLogout) { Text("Sign out") }
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Header with Value Display & Quick Toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Blur Effect",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // Tap action moved to text/chip indicator instead of the Slider modifier
+                FilterChip(
+                    selected = userBlurValue > 0f,
+                    onClick = { userBlurValue = if (userBlurValue > 50f) 0f else 100f },
+                    label = {
+                        Text(
+                            text = "${userBlurValue.roundToInt()}%",
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+                )
+            }
+
+            // Modern Material 3 Slider
+            Slider(
+                value = userBlurValue,
+                onValueChange = { userBlurValue = it },
+                valueRange = 0f..100f,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
