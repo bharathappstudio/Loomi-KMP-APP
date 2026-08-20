@@ -1,5 +1,6 @@
 package com.echo.loomi
 
+import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
@@ -19,6 +20,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.*
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -37,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -124,12 +127,27 @@ fun SettingUI(onLogout: () -> Unit) {
         label = "call_blur"
     )
 
-    var userBlurValue by remember { mutableFloatStateOf(0f) }
+    val chipInteractionSource = remember { MutableInteractionSource() }
+    val isChipPressed by chipInteractionSource.collectIsPressedAsState()
+
+    val sliderInteractionSource = remember { MutableInteractionSource() }
+    val isSliderPressed by sliderInteractionSource.collectIsPressedAsState()
+    val isSliderDragged by sliderInteractionSource.collectIsDraggedAsState()
+
+    val isPreviewing = isChipPressed || isSliderPressed || isSliderDragged
+
+    val prefs = remember { context.getSharedPreferences("echo_prefs", Context.MODE_PRIVATE) }
+    var userBlurValue by remember { mutableFloatStateOf(prefs.getFloat("user_blur", 0f)) }
+
     val animatedUserBlur by animateFloatAsState(
-        targetValue = userBlurValue,
+        targetValue = if (isPreviewing) userBlurValue else 0f,
         animationSpec = tween(300),
         label = "user_blur"
     )
+
+    LaunchedEffect(userBlurValue) {
+        prefs.edit().putFloat("user_blur", userBlurValue).apply()
+    }
 
     // --- Dynamic System Bars Support ---
     val view = androidx.compose.ui.platform.LocalView.current
@@ -331,11 +349,13 @@ fun SettingUI(onLogout: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Blur Effect",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Column {
+                    Text(
+                        text = "Blur Effect",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
                 // Tap action moved to text/chip indicator instead of the Slider modifier
                 FilterChip(
@@ -346,7 +366,8 @@ fun SettingUI(onLogout: () -> Unit) {
                             text = "${userBlurValue.roundToInt()}%",
                             style = MaterialTheme.typography.labelMedium
                         )
-                    }
+                    },
+                    interactionSource = chipInteractionSource
                 )
             }
 
@@ -355,7 +376,8 @@ fun SettingUI(onLogout: () -> Unit) {
                 value = userBlurValue,
                 onValueChange = { userBlurValue = it },
                 valueRange = 0f..100f,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                interactionSource = sliderInteractionSource
             )
         }
     }
