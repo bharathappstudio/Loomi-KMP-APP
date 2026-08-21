@@ -79,7 +79,7 @@ fun CallBottomSheet(
         // Top Image Overlay (Apple/Snap style update)
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             Image(
-                painter = painterResource(id = R.drawable.grop_chart),
+                painter = painterResource(id = R.drawable.msg),
                 contentDescription = "call",
                 modifier = Modifier.size(300.dp).padding(top = 90.dp),
                 contentScale = ContentScale.Fit
@@ -242,6 +242,7 @@ val outgoingCallReceiverUid = mutableStateOf<String?>(null)
 val currentCallPartnerName = mutableStateOf("")
 val currentCallPartnerImage = mutableStateOf("")
 val isCallActiveGlobal = mutableStateOf(false)
+val globalUserBlur = mutableStateOf(20f)
 val currentCallStateGlobal = mutableStateOf(CallState.IDLE)
 val activeCallDataGlobal = mutableStateOf<CallData?>(null)
 var isAppInForeground = false

@@ -14,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,6 +27,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
@@ -66,7 +68,7 @@ class WelcomeActivity : ComponentActivity() {
         setContent {
             LoomiTheme {
                 WelcomeScreen(onFinish = {
-                    val intent = Intent(this, MainActivity::class.java)
+                    val intent = Intent(this@WelcomeActivity, MainActivity::class.java)
                     startActivity(intent)
                     finish()
                 })

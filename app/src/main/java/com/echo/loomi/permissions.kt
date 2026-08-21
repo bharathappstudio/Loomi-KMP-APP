@@ -11,6 +11,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.animation.core.*
+import androidx.compose.ui.draw.blur
+import com.echo.loomi.ui.theme.LoomiTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -91,32 +94,34 @@ class PermissionsActivity : ComponentActivity() {
         updateState()
 
         setContent {
-            PermissionsUI(
-                onBack = { finish() },
-                states = PermissionStates(
-                    location = locationGranted,
-                    notification = notificationGranted,
-                    camera = cameraGranted,
-                    microphone = microphoneGranted,
-                    contacts = contactsGranted,
-                    storage = storageGranted
-                ),
-                onToggle = { permission, enabled ->
-                    LoomiPermissions.setUserPreference(this, permission, enabled)
-                    if (enabled) {
-                        if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                            permissionLauncher.launch(permission)
+            LoomiTheme {
+                PermissionsUI(
+                    onBack = { finish() },
+                    states = PermissionStates(
+                        location = locationGranted,
+                        notification = notificationGranted,
+                        camera = cameraGranted,
+                        microphone = microphoneGranted,
+                        contacts = contactsGranted,
+                        storage = storageGranted
+                    ),
+                    onToggle = { permission, enabled ->
+                        LoomiPermissions.setUserPreference(this@PermissionsActivity, permission, enabled)
+                        if (enabled) {
+                            if (ContextCompat.checkSelfPermission(this@PermissionsActivity, permission) != PackageManager.PERMISSION_GRANTED) {
+                                permissionLauncher.launch(permission)
+                            } else {
+                                updateState()
+                                if (permission == Manifest.permission.READ_CONTACTS) {
+                                    syncContactsToFirebase()
+                                }
+                            }
                         } else {
                             updateState()
-                            if (permission == Manifest.permission.READ_CONTACTS) {
-                                syncContactsToFirebase()
-                            }
                         }
-                    } else {
-                        updateState()
                     }
-                }
-            )
+                )
+            }
         }
     }
 

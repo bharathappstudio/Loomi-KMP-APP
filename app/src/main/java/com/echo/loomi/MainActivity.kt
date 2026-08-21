@@ -127,10 +127,15 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             LoomiTheme {
+                val prefs = remember { getSharedPreferences("echo_prefs", MODE_PRIVATE) }
+                LaunchedEffect(Unit) {
+                    globalUserBlur.value = prefs.getFloat("user_blur", 20f)
+                }
+
                 val sosActive = showSOSOverlay.value
                 val callActive = isCallActiveGlobal.value
                 val blurValue by animateDpAsState(
-                    targetValue = if (sosActive || callActive) 30.dp else 0.dp,
+                    targetValue = if (sosActive || callActive) globalUserBlur.value.dp else 0.dp,
                     animationSpec = tween(500),
                     label = "sos_blur"
                 )
@@ -716,7 +721,7 @@ fun MainContent(onLogout: () -> Unit, onAddAccount: () -> Unit, onCameraClick: (
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(androidx.compose.ui.unit.lerp(0.dp, 25.dp, blurProgress))
+                    .blur(androidx.compose.ui.unit.lerp(0.dp, globalUserBlur.value.dp, blurProgress))
             ) {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),

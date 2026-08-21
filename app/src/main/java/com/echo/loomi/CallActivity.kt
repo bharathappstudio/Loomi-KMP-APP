@@ -11,6 +11,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.animation.core.*
+import androidx.compose.ui.draw.blur
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -58,12 +60,12 @@ class CallActivity : ComponentActivity() {
                     receiverImage = receiverImage,
                     isIncoming = isIncoming,
                     onFinish = { 
-                        NotificationHelper.cancelCallNotification(this)
+                        NotificationHelper.cancelCallNotification(this@CallActivity)
                         proximitySensorManager?.stop()
                         finish() 
                     },
                     onAnswer = {
-                        NotificationHelper.cancelCallNotification(this)
+                        NotificationHelper.cancelCallNotification(this@CallActivity)
                     }
                 )
             }

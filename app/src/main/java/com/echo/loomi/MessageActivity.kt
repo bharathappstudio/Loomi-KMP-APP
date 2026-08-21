@@ -155,7 +155,9 @@ class MessageActivity : ComponentActivity() {
                 }
 
                 val blurValue by animateDpAsState(
-                    targetValue = if (sosActive || isCallActiveGlobal.value) 30.dp else if (selectedImage.value != null) 20.dp else 0.dp,
+                    targetValue = if (sosActive || isCallActiveGlobal.value) globalUserBlur.value.dp 
+                                  else if (selectedImage.value != null) (globalUserBlur.value * 0.7f).dp 
+                                  else 0.dp,
                     animationSpec = tween(300, easing = FastOutSlowInEasing),
                     label = "sos_blur"
                 )
@@ -416,7 +418,7 @@ fun MessageScreen(
             Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 if (messagesList.isEmpty()) {
                     Image(
-                        painter = painterResource(id = R.drawable.grop_chart),
+                        painter = painterResource(id = R.drawable.msg),
                         contentDescription = "No messages",
                         modifier = Modifier.size(250.dp),
                         contentScale = ContentScale.Fit

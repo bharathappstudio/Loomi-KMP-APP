@@ -122,7 +122,7 @@ fun SettingUI(onLogout: () -> Unit) {
 
     val callActive = isCallActiveGlobal.value
     val blurValue by animateDpAsState(
-        targetValue = if (callActive) 30.dp else 0.dp,
+        targetValue = if (callActive) globalUserBlur.value.dp else 0.dp,
         animationSpec = tween(500),
         label = "call_blur"
     )
@@ -137,15 +137,16 @@ fun SettingUI(onLogout: () -> Unit) {
     val isPreviewing = isChipPressed || isSliderPressed || isSliderDragged
 
     val prefs = remember { context.getSharedPreferences("echo_prefs", Context.MODE_PRIVATE) }
-    var userBlurValue by remember { mutableFloatStateOf(prefs.getFloat("user_blur", 0f)) }
+    var userBlurValue by remember { mutableFloatStateOf(prefs.getFloat("user_blur", 20f)) }
 
     val animatedUserBlur by animateFloatAsState(
         targetValue = if (isPreviewing) userBlurValue else 0f,
-        animationSpec = tween(300),
+        animationSpec = if (isPreviewing) snap() else spring(stiffness = Spring.StiffnessLow),
         label = "user_blur"
     )
 
     LaunchedEffect(userBlurValue) {
+        globalUserBlur.value = userBlurValue
         prefs.edit().putFloat("user_blur", userBlurValue).apply()
     }
 
@@ -360,7 +361,13 @@ fun SettingUI(onLogout: () -> Unit) {
                 // Tap action moved to text/chip indicator instead of the Slider modifier
                 FilterChip(
                     selected = userBlurValue > 0f,
-                    onClick = { userBlurValue = if (userBlurValue > 50f) 0f else 100f },
+                    onClick = { 
+                        userBlurValue = when {
+                            userBlurValue > 50f -> 0f
+                            userBlurValue > 0f -> 100f
+                            else -> 20f // Default to 20% on first click
+                        }
+                    },
                     label = {
                         Text(
                             text = "${userBlurValue.roundToInt()}%",

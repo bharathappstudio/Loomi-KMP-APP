@@ -37,6 +37,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.draw.blur
+import com.echo.loomi.ui.theme.LoomiTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -80,7 +82,9 @@ class EchoActivity : ComponentActivity() {
         }
 
         setContent {
-            HelloWorld()
+            LoomiTheme {
+                HelloWorld()
+            }
         }
     }
 }
