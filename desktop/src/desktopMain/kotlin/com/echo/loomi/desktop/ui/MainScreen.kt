@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.input.key.*
 import com.echo.loomi.desktop.network.FirebaseClient
 import com.echo.loomi.desktop.utils.DesktopEncryptionUtils
+import com.echo.loomi.desktop.utils.LocalCacheManager
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
@@ -98,11 +99,14 @@ fun MainScreen(
     val scope = rememberCoroutineScope()
     val isDark = isSystemInDarkTheme()
     
-    // Apple-style color palette
-    val surfaceColor = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
-    val sidebarColor = if (isDark) Color(0xFF2C2C2E) else Color(0xFFFFFFFF)
-    val accentColor = if (isDark) Color.White else Color.Black
-    val blueColor = Color(0xB3494444)
+    // Modern Minimalist Palette
+    val surfaceColor = if (isDark) Color(0xFF0F0F0F) else Color(0xFFF8F9FA)
+    val sidebarColor = if (isDark) Color(0xFF161618) else Color(0xFFFFFFFF)
+    val accentColor = if (isDark) Color(0xFFE0E0E0) else Color(0xFF1A1A1A)
+    val primaryColor = Color(0xFF000000) // Modern iOS/Desktop Blue
+    val selectedItemColor = if (isDark) Color(0xFF2C2C2E) else Color(0xFFE7FFE8)
+    val textColorPrimary = if (isDark) Color.White else Color(0xFF1A1A1A)
+    val textColorSecondary = if (isDark) Color(0xFF8E8E93) else Color(0xFF6C757D)
 
     // Database states
     val usersList = remember { mutableStateListOf<SnapUser>() }
@@ -117,6 +121,15 @@ fun MainScreen(
     var activeCallData by remember { mutableStateOf<CallData?>(null) }
     var callTicks by remember { mutableLongStateOf(0L) }
     var showSOSOverlay by remember { mutableStateOf(false) }
+
+    // Initial Load from Cache
+    LaunchedEffect(Unit) {
+        val cachedUsers = LocalCacheManager.loadUsers()
+        if (cachedUsers.isNotEmpty()) {
+            usersList.clear()
+            usersList.addAll(cachedUsers)
+        }
+    }
 
     // Sync Online status & Heartbeat
     LaunchedEffect(Unit) {
@@ -140,30 +153,45 @@ fun MainScreen(
             println("MainScreen: Auth issue on 'users' listener. Waiting for retry...")
         }) { _, path, json ->
             scope.launch(Dispatchers.Main) {
-                if (json == "null") return@launch
                 try {
+                    if (path == "" || path == "/" && json == "null") {
+                        usersList.clear()
+                        LocalCacheManager.saveUsers(usersList)
+                        return@launch
+                    }
+                    if (json == "null" && path != "" && path != "/") {
+                        // handled in the else block below
+                    } else if (json == "null") return@launch
+
                     if (path == "" || path == "/") {
                         val type = object : TypeToken<Map<String, Map<String, Any>>>() {}.type
                         val data: Map<String, Map<String, Any>>? = gson.fromJson(json, type)
                         if (data != null) {
                             usersList.clear()
                             data.forEach { (key, value) -> if (key != uid) usersList.add(parseUserMap(key, value)) }
+                            LocalCacheManager.saveUsers(usersList)
                         }
                     } else {
                         val key = path.split("/").firstOrNull { it.isNotEmpty() } ?: return@launch
                         if (key != uid) {
-                            FirebaseClient.read("users/$key") { userJson ->
-                                if (userJson != null) {
-                                    scope.launch(Dispatchers.Main) {
-                                        try {
-                                            val valMap: Map<String, Any>? = gson.fromJson(userJson, object : TypeToken<Map<String, Any>>() {}.type)
-                                            if (valMap != null) {
-                                                val index = usersList.indexOfFirst { it.uid == key }
-                                                val updated = parseUserMap(key, valMap)
-                                                if (index != -1) usersList[index] = updated else usersList.add(updated)
+                            if (json == "null") {
+                                usersList.removeAll { it.uid == key }
+                                LocalCacheManager.saveUsers(usersList)
+                            } else {
+                                FirebaseClient.read("users/$key") { userJson ->
+                                    if (userJson != null) {
+                                        scope.launch(Dispatchers.Main) {
+                                            try {
+                                                val valMap: Map<String, Any>? = gson.fromJson(userJson, object : TypeToken<Map<String, Any>>() {}.type)
+                                                if (valMap != null) {
+                                                    val index = usersList.indexOfFirst { it.uid == key }
+                                                    val updated = parseUserMap(key, valMap)
+                                                    if (index != -1) usersList[index] = updated else usersList.add(updated)
+                                                    LocalCacheManager.saveUsers(usersList)
+                                                }
+                                            } catch (e: Exception) {
+                                                println("MainScreen: Error parsing individual user update: ${e.message}")
                                             }
-                                        } catch (e: Exception) {
-                                            println("MainScreen: Error parsing individual user update: ${e.message}")
                                         }
                                     }
                                 }
@@ -310,12 +338,26 @@ fun MainScreen(
         val path = "chats/$chatId"
         activeChatListenerPath = path
 
+
+        // Load messages from cache first
+        val cachedMessages = LocalCacheManager.loadMessages(chatId)
+        messagesList.clear()
+        messagesList.addAll(cachedMessages)
+
         // 2. Start listener and use the direct stream data (no extra HTTP GET)
         FirebaseClient.startListener(path, onAuthError = { 
             println("MainScreen: Auth error on 'chats' listener. Ignoring.")
         }) { event, childPath, json ->
             scope.launch(Dispatchers.Default) {
-                if (json == "null") return@launch
+                if (json == "null") {
+                    if (childPath == "" || childPath == "/") {
+                        withContext(Dispatchers.Main) {
+                            messagesList.clear()
+                            LocalCacheManager.removeChat(chatId)
+                        }
+                    }
+                    return@launch
+                }
                 try {
                     val gson = Gson()
                     if (childPath == "" || childPath == "/") {
@@ -327,6 +369,7 @@ fun MainScreen(
                             if (data != null) {
                                 messagesList.addAll(data.values.sortedBy { it.timestamp })
                             }
+                            LocalCacheManager.saveMessages(chatId, messagesList)
                         }
                     } else {
                         // Incremental update (new message)
@@ -340,6 +383,7 @@ fun MainScreen(
                                     messagesList.add(newMsg)
                                     messagesList.sortBy { it.timestamp }
                                 }
+                                LocalCacheManager.saveMessages(chatId, messagesList)
                             }
                         }
                     }
@@ -369,73 +413,71 @@ fun MainScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(surfaceColor)) {
         Row(modifier = Modifier.fillMaxSize().blur(screenBlur)) {
-            // SIDEBAR (macOS Style)
+            // SIDEBAR (25% width)
             Surface(
-                modifier = Modifier.width(320.dp).fillMaxHeight(),
+                modifier = Modifier.weight(0.25f).fillMaxHeight(),
                 color = sidebarColor,
-                tonalElevation = 2.dp
+                tonalElevation = 0.dp
             ) {
                 Column {
                     // Header
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 16.dp, top = 24.dp, bottom = 12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 24.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Image(
-                            painter = painterResource("drawable/logo.xml"),
-                            contentDescription = "Loomi",
-                            modifier = Modifier.height(28.dp),
-                            contentScale = ContentScale.Fit,
-                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(accentColor)
+                        Text(
+                            "Loomi",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = textColorPrimary
                         )
                         Spacer(modifier = Modifier.weight(1f))
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
-                                .shadow(2.dp, CircleShape)
+                                .size(36.dp)
                                 .clip(CircleShape)
                                 .combinedClickable(
                                     onClick = { onProfileClick() },
                                     onLongClick = { onLogout() }
                                 )
                         ) {
-                            ProfileImage(currentUserImage, 34.dp)
+                            ProfileImage(currentUserImage, 36.dp)
                         }
                     }
 
-                    // Search Bar
+                    // Search Bar (Modern Pill style)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .height(36.dp)
-                            .background(if (isDark) Color(0xFF3A3A3C) else Color(0xFFE3E3E8), RoundedCornerShape(10.dp)),
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .height(40.dp)
+                            .background(if (isDark) Color(0xFF2C2C2E) else Color(0xFFF1F3F4), RoundedCornerShape(20.dp)),
                         contentAlignment = Alignment.CenterStart
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 10.dp)
+                            modifier = Modifier.padding(horizontal = 12.dp)
                         ) {
                             Icon(
                                 painter = painterResource("drawable/search.xml"),
                                 contentDescription = "Search",
-                                modifier = Modifier.size(16.dp),
-                                tint = accentColor.copy(0.4f)
+                                modifier = Modifier.size(18.dp),
+                                tint = textColorSecondary
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             BasicTextField(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
                                 modifier = Modifier.weight(1f),
-                                textStyle = TextStyle(fontSize = 14.sp, color = accentColor),
-                                cursorBrush = SolidColor(Color(0xFF007AFF)),
+                                textStyle = TextStyle(fontSize = 14.sp, color = textColorPrimary),
+                                cursorBrush = SolidColor(primaryColor),
                                 singleLine = true,
                                 decorationBox = { innerTextField ->
                                     Box {
                                         if (searchQuery.isEmpty()) {
                                             Text(
                                                 "Search",
-                                                color = accentColor.copy(0.4f),
+                                                color = textColorSecondary.copy(0.7f),
                                                 fontSize = 14.sp
                                             )
                                         }
@@ -446,7 +488,7 @@ fun MainScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // Users List
                     LazyColumn(
@@ -462,56 +504,55 @@ fun MainScreen(
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .clip(RoundedCornerShape(12.dp))
                                     .clickable { selectedUser = user },
-                                color = if (isSelected) blueColor else Color.Transparent,
-                                shape = RoundedCornerShape(8.dp)
+                                color = if (isSelected) selectedItemColor else Color.Transparent,
+                                shape = RoundedCornerShape(12.dp)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(10.dp),
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    ProfileImage(user.imageName, 44.dp)
+                                    Box {
+                                        ProfileImage(user.imageName, 48.dp)
+                                        if (isOnline) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(12.dp)
+                                                    .align(Alignment.BottomEnd)
+                                                    .background(Color(0xFF34C759), CircleShape)
+                                                    .border(2.dp, sidebarColor, CircleShape)
+                                            )
+                                        }
+                                    }
 
                                     Spacer(modifier = Modifier.width(12.dp))
 
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             user.name,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = if (isSelected) Color.White else accentColor,
+                                            fontSize = 15.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected && !isDark) primaryColor else textColorPrimary,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
 
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = if (isOnline) "Online" else "Offline",
-                                                fontSize = 11.sp,
-                                                color = if (isSelected) Color.White.copy(0.6f) else accentColor.copy(0.4f),
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                            
-                                            val msg = DesktopEncryptionUtils.decrypt(user.lastMessage)
-                                            if (msg.isNotEmpty()) {
-                                                Text(
-                                                    text = " • " + (if (msg.startsWith("img:")) "Image" else msg),
-                                                    fontSize = 11.sp,
-                                                    color = if (isSelected) Color.White.copy(0.6f) else accentColor.copy(0.4f),
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.padding(start = 2.dp)
-                                                )
-                                            }
-                                        }
+                                        val msg = DesktopEncryptionUtils.decrypt(user.lastMessage)
+                                        Text(
+                                            text = if (msg.isEmpty()) (if (isOnline) "Online" else "Offline") else (if (msg.startsWith("img:")) "Sent an image" else msg),
+                                            fontSize = 13.sp,
+                                            color = if (isSelected && !isDark) primaryColor.copy(0.7f) else textColorSecondary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
                                     }
                                     
                                     if (user.lastSeen > 0 && !isOnline) {
                                         Text(
                                             text = formatLastSeenShort(user.lastSeen),
-                                            fontSize = 10.sp,
-                                            color = if (isSelected) Color.White.copy(0.6f) else accentColor.copy(0.3f),
+                                            fontSize = 11.sp,
+                                            color = textColorSecondary.copy(0.6f),
                                             modifier = Modifier.padding(start = 4.dp)
                                         )
                                     }
@@ -523,8 +564,8 @@ fun MainScreen(
             }
 
 
-            // CHAT PANE
-            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            // CHAT PANE (75% width)
+            Box(modifier = Modifier.weight(0.75f).fillMaxHeight()) {
                 if (selectedUser == null) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -536,7 +577,7 @@ fun MainScreen(
                         }
                     }
                 } else {
-                    ChatPane(selectedUser!!, messagesList, accentColor, surfaceColor, isDark) {
+                    ChatPane(selectedUser!!, messagesList, textColorPrimary, surfaceColor, isDark, primaryColor, textColorSecondary) {
                         val uid = FirebaseClient.currentUid ?: return@ChatPane
                         val callData = CallData(uid, selectedUser!!.uid, DesktopEncryptionUtils.encrypt(currentUserName), DesktopEncryptionUtils.encrypt(currentUserImage), "ringing")
                         FirebaseClient.write("calls/${selectedUser!!.uid}", callData)
@@ -567,29 +608,25 @@ fun MainScreen(
             }
             
             Box(modifier = Modifier.fillMaxSize()) {
-                // Background is the main UI blurred (via screenBlur on the Row below)
-
-                // Call Content (Sharp Image, Name & Round Buttons)
+                // Modern Call Overlay
                 Column(
-                    modifier = Modifier.fillMaxSize().padding(vertical = 60.dp),
+                    modifier = Modifier.fillMaxSize().padding(vertical = 80.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Peer Name at Top
+                    // Peer Name & Status
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = peerName.uppercase(),
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Black,
-                            color = accentColor,
-                            fontFamily = FontFamily.Monospace,
-                            letterSpacing = 4.sp
+                            text = peerName,
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = textColorPrimary
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = when (callState) {
-                                CallState.INCOMING -> "INCOMING CALL..."
-                                CallState.OUTGOING -> "CALLING..."
+                                CallState.INCOMING -> "Incoming call..."
+                                CallState.OUTGOING -> "Calling..."
                                 CallState.ONGOING -> {
                                     val mins = callTicks / 60
                                     val secs = callTicks % 60
@@ -597,87 +634,75 @@ fun MainScreen(
                                 }
                                 else -> ""
                             },
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = accentColor.copy(0.4f),
-                            fontFamily = FontFamily.Monospace,
-                            letterSpacing = 2.sp
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = textColorSecondary
                         )
                     }
 
-                    // Sharp Profile Image in Middle
-                    Box(modifier = Modifier.shadow(60.dp, CircleShape)) {
+                    // Large Profile Image
+                    Box(
+                        modifier = Modifier
+                            .size(240.dp)
+                            .shadow(40.dp, CircleShape)
+                            .border(4.dp, primaryColor.copy(alpha = 0.2f), CircleShape)
+                    ) {
                         ProfileImage(peerImage, 240.dp)
                     }
 
+                    // Controls
                     Row(
-                        modifier = Modifier.padding(bottom = 40.dp),
-                        horizontalArrangement = Arrangement.spacedBy(100.dp)
+                        modifier = Modifier.padding(bottom = 20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(40.dp)
                     ) {
                         if (isIncoming) {
-                            // Accept (Answer)
-                            Box(
-                                modifier = Modifier
-                                    .size(96.dp)
-                                    .shadow(30.dp, CircleShape)
-                                    .background(Color(0xFF34C759), CircleShape)
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null
-                                    ) { FirebaseClient.write("calls/${FirebaseClient.currentUid}/status", "accepted") },
-                                contentAlignment = Alignment.Center
+                            // Accept
+                            FloatingActionButton(
+                                onClick = { FirebaseClient.write("calls/${FirebaseClient.currentUid}/status", "accepted") },
+                                containerColor = Color(0xFF34C759),
+                                contentColor = Color.White,
+                                shape = CircleShape,
+                                modifier = Modifier.size(72.dp)
                             ) {
-                                Image(
+                                Icon(
                                     painter = painterResource("drawable/call.xml"),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(40.dp),
-                                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
+                                    contentDescription = "Accept",
+                                    modifier = Modifier.size(32.dp)
                                 )
                             }
-                            // Decline (Cut)
-                            Box(
-                                modifier = Modifier
-                                    .size(96.dp)
-                                    .shadow(30.dp, CircleShape)
-                                    .background(Color(0xFFFF3B30), CircleShape)
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null
-                                    ) { FirebaseClient.delete("calls/${FirebaseClient.currentUid}") },
-                                contentAlignment = Alignment.Center
+                            // Decline
+                            FloatingActionButton(
+                                onClick = { FirebaseClient.delete("calls/${FirebaseClient.currentUid}") },
+                                containerColor = Color(0xFFFF3B30),
+                                contentColor = Color.White,
+                                shape = CircleShape,
+                                modifier = Modifier.size(72.dp)
                             ) {
-                                Image(
+                                Icon(
                                     painter = painterResource("drawable/call.xml"),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(40.dp).graphicsLayer(rotationZ = 135f),
-                                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
+                                    contentDescription = "Decline",
+                                    modifier = Modifier.size(32.dp).graphicsLayer(rotationZ = 135f)
                                 )
                             }
                         } else {
-                            // End Call (Cut)
-                            Box(
-                                modifier = Modifier
-                                    .size(96.dp)
-                                    .shadow(30.dp, CircleShape)
-                                    .background(Color(0xFFFF3B30), CircleShape)
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null
-                                    ) { 
-                                        activeCallData?.let { data ->
-                                            // The call node is always at the receiver's UID
-                                            FirebaseClient.delete("calls/${data.receiverId}")
-                                        }
-                                        callState = CallState.IDLE 
-                                        activeCallData = null
-                                    },
-                                contentAlignment = Alignment.Center
+                            // End Call
+                            FloatingActionButton(
+                                onClick = { 
+                                    activeCallData?.let { data ->
+                                        FirebaseClient.delete("calls/${data.receiverId}")
+                                    }
+                                    callState = CallState.IDLE 
+                                    activeCallData = null
+                                },
+                                containerColor = Color(0xFFFF3B30),
+                                contentColor = Color.White,
+                                shape = CircleShape,
+                                modifier = Modifier.size(72.dp)
                             ) {
-                                Image(
+                                Icon(
                                     painter = painterResource("drawable/call.xml"),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(40.dp).graphicsLayer(rotationZ = 135f),
-                                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White)
+                                    contentDescription = "End Call",
+                                    modifier = Modifier.size(32.dp).graphicsLayer(rotationZ = 135f)
                                 )
                             }
                         }
@@ -689,7 +714,16 @@ fun MainScreen(
 }
 
 @Composable
-fun ChatPane(receiver: SnapUser, messages: List<ChatMessage>, accent: Color, surface: Color, isDark: Boolean, onCall: () -> Unit) {
+fun ChatPane(
+    receiver: SnapUser, 
+    messages: List<ChatMessage>, 
+    textColor: Color, 
+    surface: Color, 
+    isDark: Boolean, 
+    primaryColor: Color,
+    secondaryColor: Color,
+    onCall: () -> Unit
+) {
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -715,36 +749,33 @@ fun ChatPane(receiver: SnapUser, messages: List<ChatMessage>, accent: Color, sur
     LaunchedEffect(messages.size) { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // iOS Style Header
+        // Modern Header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .padding(horizontal = 20.dp, vertical = 14.dp)
+                .background(surface.copy(alpha = 0.8f))
                 .drawBehind {
-                    drawLine(accent.copy(0.05f), Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx())
+                    drawLine(textColor.copy(0.05f), Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx())
                 },
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ProfileImage(receiver.imageName, 40.dp)
+            ProfileImage(receiver.imageName, 44.dp)
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
-                    receiver.name.uppercase(),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Black,
-                    color = accent,
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = 1.sp
+                    receiver.name,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textColor
                 )
                 val isOnline = receiver.status.equals("Online", ignoreCase = true) && 
                               (System.currentTimeMillis() - receiver.lastSeen < 60000)
                 Text(
-                    text = if (isOnline) "ONLINE" else "OFFLINE",
-                    fontSize = 9.sp,
-                    color = accent.copy(0.4f),
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
+                    text = if (isOnline) "Online" else "Offline",
+                    fontSize = 12.sp,
+                    color = if (isOnline) Color(0xFF34C759) else secondaryColor,
+                    fontWeight = FontWeight.Medium
                 )
             }
             Spacer(modifier = Modifier.weight(1f))
@@ -752,7 +783,7 @@ fun ChatPane(receiver: SnapUser, messages: List<ChatMessage>, accent: Color, sur
                 Icon(
                     painter = painterResource("drawable/call.xml"),
                     contentDescription = "Call",
-                    tint = Color(0xFF007AFF),
+                    tint = primaryColor,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -763,35 +794,33 @@ fun ChatPane(receiver: SnapUser, messages: List<ChatMessage>, accent: Color, sur
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                contentPadding = PaddingValues(20.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(messages) { msg ->
                     val isMe = msg.senderId == FirebaseClient.currentUid
-                    val isDark = isSystemInDarkTheme()
                     val decrypted = DesktopEncryptionUtils.decrypt(msg.message)
                     
                     val bubbleShape = RoundedCornerShape(
-                        topStart = 22.dp,
-                        topEnd = 22.dp,
-                        bottomStart = if (isMe) 22.dp else 8.dp,
-                        bottomEnd = if (isMe) 5.dp else 22.dp
+                        topStart = 16.dp,
+                        topEnd = 16.dp,
+                        bottomStart = if (isMe) 16.dp else 4.dp,
+                        bottomEnd = if (isMe) 4.dp else 16.dp
                     )
 
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
                     ) {
                         Column(
                             modifier = Modifier
-                                .widthIn(max = 480.dp)
+                                .widthIn(max = 520.dp)
+                                .shadow(if (isMe) 2.dp else 0.dp, bubbleShape)
                                 .clip(bubbleShape)
                                 .background(
-                                    if (isMe) (if (isDark) Color.White.copy(0.2f) else Color(0xFFC8E6C9).copy(alpha = 0.4f)) 
-                                    else (if (isDark) Color.White.copy(0.1f) else Color(0xFFFFECB3).copy(alpha = 0.45f))
+                                    if (isMe) primaryColor else (if (isDark) Color(0xFF2C2C2E) else Color(0xFFE9E9EB))
                                 )
-                                .border(1.dp, Color.White.copy(alpha = if (isDark) 0.1f else 0.80f), bubbleShape)
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
                         ) {
                             if (decrypted.startsWith("img:")) {
                                 val base64Data = decrypted.substring(4)
@@ -812,83 +841,93 @@ fun ChatPane(receiver: SnapUser, messages: List<ChatMessage>, accent: Color, sur
                                         contentDescription = "Image message",
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .heightIn(max = 350.dp)
-                                            .clip(RoundedCornerShape(12.dp)),
+                                            .heightIn(max = 400.dp)
+                                            .clip(RoundedCornerShape(8.dp)),
                                         contentScale = ContentScale.Crop
                                     )
                                 } else {
-                                    Text("LOADING IMAGE...", fontSize = 11.sp, color = accent.copy(0.4f))
+                                    Text("Loading image...", fontSize = 12.sp, color = if (isMe) Color.White.copy(0.7f) else secondaryColor)
                                 }
                             } else {
                                 Text(
                                     text = decrypted,
                                     fontSize = 15.sp,
-                                    lineHeight = 22.sp,
-                                    color = if (isMe) (if (isDark) Color.White else accent) else (if (isDark) Color.White else accent.copy(0.7f))
+                                    lineHeight = 20.sp,
+                                    color = if (isMe) Color.White else textColor
                                 )
                             }
+                            
+                            Text(
+                                text = formatMessageTime(msg.timestamp),
+                                fontSize = 10.sp,
+                                color = if (isMe) Color.White.copy(0.7f) else secondaryColor,
+                                modifier = Modifier.align(Alignment.End).padding(top = 4.dp)
+                            )
                         }
                     }
                 }
             }
         }
 
-        // Nothing-Style Input Bar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 24.dp),
-            verticalAlignment = Alignment.CenterVertically
+        // Modern Input Bar
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = surface,
+            tonalElevation = 8.dp
         ) {
-            Box(
+            Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .background(if (isDark) Color(0xFF2C2C2E) else accent.copy(0.04f), RoundedCornerShape(8.dp))
-                    .border(1.dp, accent.copy(0.08f), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                BasicTextField(
-                    value = input,
-                    onValueChange = { input = it },
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .onPreviewKeyEvent {
-                            if (it.key == Key.Enter && it.type == KeyEventType.KeyDown) {
-                                sendMessage()
-                                true
-                            } else false
-                        },
-                    textStyle = TextStyle(fontSize = 14.sp, color = accent, fontFamily = FontFamily.Monospace, letterSpacing = 0.5.sp),
-                    cursorBrush = SolidColor(Color(0x80FF3B30)), // Nothing Red cursor
-                    decorationBox = { innerTextField ->
-                        Box {
-                            if (input.isEmpty()) {
-                                Text(
-                                    "INPUT DATA TO NODE...", 
-                                    color = accent.copy(0.2f), 
-                                    fontSize = 12.sp, 
-                                    fontFamily = FontFamily.Monospace,
-                                    letterSpacing = 1.sp
-                                )
+                        .weight(1f)
+                        .background(if (isDark) Color(0xFF1C1C1E) else Color(0xFFF1F3F4), RoundedCornerShape(24.dp))
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                ) {
+                    BasicTextField(
+                        value = input,
+                        onValueChange = { input = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onPreviewKeyEvent {
+                                if (it.key == Key.Enter && it.type == KeyEventType.KeyDown) {
+                                    sendMessage()
+                                    true
+                                } else false
+                            },
+                        textStyle = TextStyle(fontSize = 15.sp, color = textColor),
+                        cursorBrush = SolidColor(primaryColor),
+                        decorationBox = { innerTextField ->
+                            Box {
+                                if (input.isEmpty()) {
+                                    Text(
+                                        "Write a message...", 
+                                        color = secondaryColor.copy(0.6f), 
+                                        fontSize = 15.sp
+                                    )
+                                }
+                                innerTextField()
                             }
-                            innerTextField()
                         }
-                    }
-                )
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            IconButton(
-                onClick = { sendMessage() },
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(if (input.isNotBlank()) Color(0xFFFF3B30) else accent.copy(0.1f), CircleShape)
-            ) {
-                Icon(
-                    painter = painterResource("drawable/send.xml"),
-                    contentDescription = "Send",
-                    modifier = Modifier.size(20.dp),
-                    tint = if (input.isNotBlank()) Color.White else accent.copy(0.3f)
-                )
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                IconButton(
+                    onClick = { sendMessage() },
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(if (input.isNotBlank()) primaryColor else Color.Transparent, CircleShape)
+                ) {
+                    Icon(
+                        painter = painterResource("drawable/send.xml"),
+                        contentDescription = "Send",
+                        modifier = Modifier.size(22.dp),
+                        tint = if (input.isNotBlank()) Color.White else secondaryColor
+                    )
+                }
             }
         }
     }
@@ -904,13 +943,27 @@ fun formatMessageTime(timestamp: Long): String {
 fun ProfileImage(path: String, size: androidx.compose.ui.unit.Dp) {
     var bitmap by remember(path) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(path) {
+        if (path.isEmpty()) return@LaunchedEffect
+        
         withContext(Dispatchers.IO) {
             try {
+                // 1. Try Loading from Local Cache
+                val cachedFile = LocalCacheManager.getCachedImage(path)
+                if (cachedFile != null) {
+                    try {
+                        bitmap = loadImageBitmap(cachedFile.inputStream())
+                        return@withContext
+                    } catch (e: Exception) {
+                        cachedFile.delete() // Corrupt cache
+                    }
+                }
+
+                // 2. Load from Data URI or Network
                 if (path.startsWith("data:image")) {
                     val bytes = Base64.getDecoder().decode(path.substringAfter("base64,").replace("\\s".toRegex(), ""))
+                    LocalCacheManager.saveImageBytes(path, bytes)
                     bitmap = loadImageBitmap(bytes.inputStream())
                 } else if (path.startsWith("http")) {
-                    // Request high quality from Google
                     val highResUrl = if (path.contains("googleusercontent.com")) {
                         if (path.contains("=")) {
                             path.substringBeforeLast("=") + "=s512-c"
@@ -924,9 +977,13 @@ fun ProfileImage(path: String, size: androidx.compose.ui.unit.Dp) {
                     val connection = URL(highResUrl).openConnection()
                     connection.connectTimeout = 5000
                     connection.readTimeout = 5000
-                    bitmap = loadImageBitmap(connection.getInputStream())
+                    val bytes = connection.getInputStream().readBytes()
+                    LocalCacheManager.saveImageBytes(path, bytes)
+                    bitmap = loadImageBitmap(bytes.inputStream())
                 }
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+                println("ProfileImage: Error loading/caching image: ${e.message}")
+            }
         }
     }
     Box(

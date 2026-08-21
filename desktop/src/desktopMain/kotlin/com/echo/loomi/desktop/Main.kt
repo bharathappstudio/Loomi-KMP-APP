@@ -153,6 +153,9 @@ fun startApp() = application {
                             googlePhotoUrl = it.photoUrl,
                             userName = it.name,
                             userEmail = it.email,
+                            onBack = {
+                                currentScreen = SCREEN_MAIN
+                            },
                             onProfileComplete = {
                                 FirebaseClient.read("users/${it.uid}/imageName") { dbImageName ->
                                     val cleanDbImage = if (dbImageName == "null" || dbImageName == null) "" else dbImageName.replace("\"", "")

@@ -18,6 +18,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.*
 import com.echo.loomi.desktop.network.FirebaseClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -31,6 +34,7 @@ fun WelcomeScreen(
     googlePhotoUrl: String,
     userName: String,
     userEmail: String,
+    onBack: () -> Unit = {},
     onProfileComplete: () -> Unit
 ) {
     var customImageBase64 by remember { mutableStateOf<String?>(null) }
@@ -80,7 +84,25 @@ fun WelcomeScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(surface), contentAlignment = Alignment.Center) {
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(surface)
+            .focusRequester(focusRequester)
+            .focusable()
+            .onPreviewKeyEvent {
+                if (it.key == Key.Escape && it.type == KeyEventType.KeyDown) {
+                    onBack()
+                    true
+                } else false
+            },
+        contentAlignment = Alignment.Center
+    ) {
         Column(
             modifier = Modifier.width(460.dp).wrapContentHeight(),
             horizontalAlignment = Alignment.CenterHorizontally
