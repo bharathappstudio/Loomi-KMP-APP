@@ -81,7 +81,7 @@ fun CallBottomSheet(
             Image(
                 painter = painterResource(id = R.drawable.msg),
                 contentDescription = "call",
-                modifier = Modifier.size(300.dp).padding(top = 90.dp),
+                modifier = Modifier.size(260.dp).padding(top = 90.dp),
                 contentScale = ContentScale.Fit
             )
         }
