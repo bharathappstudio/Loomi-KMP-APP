@@ -751,22 +751,50 @@ fun ChatBubble(msg: ChatMessage, isMe: Boolean, onImageClick: (String) -> Unit) 
                             contentScale = ContentScale.FillWidth
                         )
                         
-                        Icon(
-                            painter = painterResource(id = R.drawable.hd),
-                            contentDescription = "HD",
-                            tint = Color.White,
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(8.dp)
-                                .size(20.dp)
-                        )
+                        Row(
+                            modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = formatMessageTime(msg.timestamp),
+                                fontSize = 10.sp,
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
+                            Icon(
+                                painter = painterResource(id = R.drawable.hd),
+                                contentDescription = "HD",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             } else {
-                // End-to-End Decryption
+                // End-to-End Decryption with One-Line Time integration
                 val decryptedMessage = EncryptionUtils.decrypt(msg.message)
+                val timeColor = (if (isDark) Color.White else Color.Black).copy(alpha = 0.5f)
+                
+                val annotatedContent = buildAnnotatedString {
+                    // First, parse the markdown (bold text)
+                    val parts = decryptedMessage.split("**")
+                    parts.forEachIndexed { index, part ->
+                        if (index % 2 == 1) {
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(part) }
+                        } else {
+                            append(part)
+                        }
+                    }
+                    
+                    // Then append the time with a different style
+                    append("  ")
+                    withStyle(SpanStyle(fontSize = 11.sp, color = timeColor, fontWeight = FontWeight.Normal)) {
+                        append(formatMessageTime(msg.timestamp))
+                    }
+                }
+
                 Text(
-                    text = parseMarkdown(decryptedMessage),
+                    text = annotatedContent,
                     fontSize = 16.sp,
                     lineHeight = 22.sp,
                     color = if (isDark) Color.White else Color(0xB3000000)
@@ -774,6 +802,12 @@ fun ChatBubble(msg: ChatMessage, isMe: Boolean, onImageClick: (String) -> Unit) 
             }
         }
     }
+}
+
+fun formatMessageTime(timestamp: Long): String {
+    val date = java.util.Date(timestamp)
+    val sdf = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+    return sdf.format(date)
 }
 
 

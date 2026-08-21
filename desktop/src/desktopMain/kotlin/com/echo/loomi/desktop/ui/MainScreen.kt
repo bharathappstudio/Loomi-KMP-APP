@@ -121,6 +121,9 @@ fun MainScreen(
     var activeCallData by remember { mutableStateOf<CallData?>(null) }
     var callTicks by remember { mutableLongStateOf(0L) }
     var showSOSOverlay by remember { mutableStateOf(false) }
+    
+    // Full Screen Image state
+    var selectedFullScreenImage by remember { mutableStateOf<String?>(null) }
 
     // Initial Load from Cache
     LaunchedEffect(Unit) {
@@ -409,7 +412,7 @@ fun MainScreen(
         .sortedByDescending { it.status.equals("Online", ignoreCase = true) }
 
     val isCallActive = callState != CallState.IDLE && activeCallData != null
-    val screenBlur by animateDpAsState(if (isCallActive) 60.dp else 0.dp)
+    val screenBlur by animateDpAsState(if (isCallActive || selectedFullScreenImage != null) 60.dp else 0.dp)
 
     Box(modifier = Modifier.fillMaxSize().background(surfaceColor)) {
         Row(modifier = Modifier.fillMaxSize().blur(screenBlur)) {
@@ -577,19 +580,80 @@ fun MainScreen(
                         }
                     }
                 } else {
-                    ChatPane(selectedUser!!, messagesList, textColorPrimary, surfaceColor, isDark, primaryColor, textColorSecondary) {
-                        val uid = FirebaseClient.currentUid ?: return@ChatPane
-                        val callData = CallData(uid, selectedUser!!.uid, DesktopEncryptionUtils.encrypt(currentUserName), DesktopEncryptionUtils.encrypt(currentUserImage), "ringing")
-                        FirebaseClient.write("calls/${selectedUser!!.uid}", callData)
-                        activeCallData = callData
-                        callState = CallState.OUTGOING
+                    ChatPane(
+                        receiver = selectedUser!!,
+                        messages = messagesList,
+                        textColor = textColorPrimary,
+                        surface = surfaceColor,
+                        isDark = isDark,
+                        primaryColor = primaryColor,
+                        secondaryColor = textColorSecondary,
+                        onCall = {
+                            val uid = FirebaseClient.currentUid ?: return@ChatPane
+                            val callData = CallData(uid, selectedUser!!.uid, DesktopEncryptionUtils.encrypt(currentUserName), DesktopEncryptionUtils.encrypt(currentUserImage), "ringing")
+                            FirebaseClient.write("calls/${selectedUser!!.uid}", callData)
+                            activeCallData = callData
+                            callState = CallState.OUTGOING
+                        },
+                        onImageClick = { base64 -> selectedFullScreenImage = base64 }
+                    )
+                }
+            }
+        }
+
+        // Full Screen Image Viewer (Clean Dim Overlay)
+        AnimatedVisibility(
+            visible = selectedFullScreenImage != null,
+            enter = fadeIn(tween(300)),
+            exit = fadeOut(tween(300))
+        ) {
+            selectedFullScreenImage?.let { base64 ->
+                var bitmap by remember(base64) { mutableStateOf<ImageBitmap?>(null) }
+                
+                LaunchedEffect(base64) {
+                    withContext(Dispatchers.IO) {
+                        try {
+                            val bytes = Base64.getDecoder().decode(base64.replace("\\s".toRegex(), ""))
+                            bitmap = loadImageBitmap(bytes.inputStream())
+                        } catch (e: Exception) {}
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { selectedFullScreenImage = null },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap!!,
+                            contentDescription = "Full Screen Image",
+                            modifier = Modifier
+                                .fillMaxSize(0.85f)
+                                .clip(RoundedCornerShape(20.dp)) // 20dp corners
+                                .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
+                                .graphicsLayer {
+                                    shadowElevation = 20f
+                                    shape = RoundedCornerShape(20.dp)
+                                    clip = true
+                                },
+                            contentScale = ContentScale.Fit
+                        )
                     }
                 }
             }
         }
 
-        // Call Overlay (FaceTime style)
-        if (isCallActive) {
+        // Call Overlay (FaceTime style - Unified Style)
+        AnimatedVisibility(
+            visible = isCallActive,
+            enter = fadeIn(tween(400)),
+            exit = fadeOut(tween(400))
+        ) {
             val uid = FirebaseClient.currentUid
             val isIStartedIt = activeCallData?.callerId == uid
             val isIncoming = callState == CallState.INCOMING
@@ -607,8 +671,11 @@ fun MainScreen(
                 DesktopEncryptionUtils.decrypt(activeCallData?.callerName ?: "")
             }
             
-            Box(modifier = Modifier.fillMaxSize()) {
-                // Modern Call Overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.05f)) // Very subtle tint to match image viewer feel
+            ) {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(vertical = 80.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -620,7 +687,7 @@ fun MainScreen(
                             text = peerName,
                             fontSize = 32.sp,
                             fontWeight = FontWeight.Bold,
-                            color = textColorPrimary
+                            color = if (isDark) Color.White else Color.Black
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -722,7 +789,8 @@ fun ChatPane(
     isDark: Boolean, 
     primaryColor: Color,
     secondaryColor: Color,
-    onCall: () -> Unit
+    onCall: () -> Unit,
+    onImageClick: (String) -> Unit
 ) {
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -800,6 +868,7 @@ fun ChatPane(
                 items(messages) { msg ->
                     val isMe = msg.senderId == FirebaseClient.currentUid
                     val decrypted = DesktopEncryptionUtils.decrypt(msg.message)
+                    val isImage = decrypted.startsWith("img:")
                     
                     val bubbleShape = RoundedCornerShape(
                         topStart = 16.dp,
@@ -814,15 +883,15 @@ fun ChatPane(
                     ) {
                         Column(
                             modifier = Modifier
-                                .widthIn(max = 520.dp)
+                                .widthIn(max = if (isImage) 300.dp else 520.dp)
                                 .shadow(if (isMe) 2.dp else 0.dp, bubbleShape)
                                 .clip(bubbleShape)
                                 .background(
                                     if (isMe) primaryColor else (if (isDark) Color(0xFF2C2C2E) else Color(0xFFE9E9EB))
                                 )
-                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                                .then(if (!isImage) Modifier.padding(horizontal = 14.dp, vertical = 10.dp) else Modifier)
                         ) {
-                            if (decrypted.startsWith("img:")) {
+                            if (isImage) {
                                 val base64Data = decrypted.substring(4)
                                 var imageBitmap by remember(base64Data) { mutableStateOf<ImageBitmap?>(null) }
                                 
@@ -836,33 +905,62 @@ fun ChatPane(
                                 }
 
                                 if (imageBitmap != null) {
-                                    Image(
-                                        bitmap = imageBitmap!!,
-                                        contentDescription = "Image message",
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .heightIn(max = 400.dp)
-                                            .clip(RoundedCornerShape(8.dp)),
-                                        contentScale = ContentScale.Crop
-                                    )
+                                    Box(
+                                        modifier = Modifier.clickable { onImageClick(base64Data) }
+                                    ) {
+                                        Image(
+                                            bitmap = imageBitmap!!,
+                                            contentDescription = "Image message",
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .heightIn(max = 240.dp),
+                                            contentScale = ContentScale.FillWidth
+                                        )
+                                        
+                                        Row(
+                                            modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text(
+                                                text = formatMessageTime(msg.timestamp),
+                                                fontSize = 10.sp,
+                                                color = Color.White.copy(alpha = 0.8f)
+                                            )
+                                            Icon(
+                                                painter = painterResource("drawable/hd.xml"),
+                                                contentDescription = "HD",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
                                 } else {
-                                    Text("Loading image...", fontSize = 12.sp, color = if (isMe) Color.White.copy(0.7f) else secondaryColor)
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth().height(150.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("Loading image...", fontSize = 12.sp, color = if (isMe) Color.White.copy(0.7f) else secondaryColor)
+                                    }
                                 }
                             } else {
+                                // Unified one-line style using AnnotatedString to prevent full-width bug
+                                val timeColor = (if (isMe) Color.White else textColor).copy(alpha = 0.6f)
+                                val annotatedMessage = buildAnnotatedString {
+                                    append(decrypted)
+                                    append("  ") // Space between text and time
+                                    withStyle(SpanStyle(fontSize = 11.sp, color = timeColor)) {
+                                        append(formatMessageTime(msg.timestamp))
+                                    }
+                                }
+                                
                                 Text(
-                                    text = decrypted,
+                                    text = annotatedMessage,
                                     fontSize = 15.sp,
                                     lineHeight = 20.sp,
                                     color = if (isMe) Color.White else textColor
                                 )
                             }
-                            
-                            Text(
-                                text = formatMessageTime(msg.timestamp),
-                                fontSize = 10.sp,
-                                color = if (isMe) Color.White.copy(0.7f) else secondaryColor,
-                                modifier = Modifier.align(Alignment.End).padding(top = 4.dp)
-                            )
                         }
                     }
                 }
