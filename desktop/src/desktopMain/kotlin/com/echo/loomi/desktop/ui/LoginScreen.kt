@@ -35,7 +35,7 @@ import java.awt.BorderLayout
 
 @Composable
 fun LoginScreen(
-    onLoginSuccess: (idToken: String, uid: String, name: String, email: String, photoUrl: String) -> Unit
+    onLoginSuccess: (idToken: String, refreshToken: String, uid: String, name: String, email: String, photoUrl: String) -> Unit
 ) {
     var emailInput by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
@@ -99,7 +99,14 @@ fun LoginScreen(
                                 OAuthServer.startGoogleSignIn { result ->
                                     isLoading = false
                                     if (result.success) {
-                                        onLoginSuccess(result.idToken!!, result.uid!!, result.name!!, result.email!!, result.photoUrl ?: "")
+                                        onLoginSuccess(
+                                            result.idToken!!, 
+                                            result.refreshToken ?: "", 
+                                            result.uid!!, 
+                                            result.name!!, 
+                                            result.email!!, 
+                                            result.photoUrl ?: ""
+                                        )
                                     } else {
                                         errorMessage = result.errorMessage ?: "AUTH_FAILED"
                                     }
@@ -140,7 +147,7 @@ fun LoginScreen(
                                     delay(500)
                                     isLoading = false
                                     val n = emailInput.substringBefore("@")
-                                    onLoginSuccess("mock", "test_$n", n, emailInput, "")
+                                    onLoginSuccess("mock", "", "test_$n", n, emailInput, "")
                                 }
                             }
                         }

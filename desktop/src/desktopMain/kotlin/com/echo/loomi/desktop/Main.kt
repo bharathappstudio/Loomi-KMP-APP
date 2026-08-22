@@ -25,6 +25,7 @@ private val SESSION_FILE = File(System.getProperty("user.home"), ".gemini/antigr
 
 data class SessionData(
     val idToken: String,
+    val refreshToken: String = "",
     val uid: String,
     val name: String,
     val email: String,
@@ -43,7 +44,7 @@ fun startApp() = application {
                 val json = SESSION_FILE.readText()
                 val data = Gson().fromJson(json, SessionData::class.java)
                 if (data != null) {
-                    FirebaseClient.initAuth(data.idToken, data.uid)
+                    FirebaseClient.initAuth(data.idToken, data.uid, data.refreshToken)
                 }
                 data
             } catch (e: Exception) {
@@ -59,9 +60,17 @@ fun startApp() = application {
     val scope = rememberCoroutineScope()
     
     LaunchedEffect(Unit) {
+        FirebaseClient.onTokenRefreshed = { idToken, refreshToken ->
+            session?.let { currentSession ->
+                val newSession = currentSession.copy(idToken = idToken, refreshToken = refreshToken)
+                session = newSession
+                saveSession(newSession)
+            }
+        }
+
         session?.let { data ->
             println("Main: Session found. Initializing Auth for UID: ${data.uid}")
-            FirebaseClient.initAuth(data.idToken, data.uid)
+            FirebaseClient.initAuth(data.idToken, data.uid, data.refreshToken)
             
             // Background update of session data without forcing screen changes
             FirebaseClient.read("users/${data.uid}/imageName") { dbImageName ->
@@ -96,12 +105,12 @@ fun startApp() = application {
             when (currentScreen) {
                 SCREEN_LOGIN -> {
                     LoginScreen(
-                        onLoginSuccess = { token, uid, name, email, photoUrl ->
-                            FirebaseClient.initAuth(token, uid)
+                        onLoginSuccess = { token, refresh, uid, name, email, photoUrl ->
+                            FirebaseClient.initAuth(token, uid, refresh)
                             FirebaseClient.read("users/$uid/imageName") { dbImageNameJson ->
                                 val dbImageName = if (dbImageNameJson == null || dbImageNameJson == "null") "" else dbImageNameJson.replace("\"", "")
                                 
-                                val newSession = SessionData(token, uid, name, email, photoUrl, dbImageName)
+                                val newSession = SessionData(token, refresh, uid, name, email, photoUrl, dbImageName)
                                 session = newSession
                                 saveSession(newSession)
                                 

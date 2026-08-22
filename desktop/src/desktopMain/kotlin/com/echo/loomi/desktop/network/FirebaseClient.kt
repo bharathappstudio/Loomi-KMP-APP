@@ -21,15 +21,59 @@ object FirebaseClient {
     private val gson = Gson()
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
+    private const val FIREBASE_API_KEY = "AIzaSyBjC3-mCdWDP28kA293ZKEsWZPPnjRqr-0"
+
     var authToken: String? = null
+    var refreshToken: String? = null
     var currentUid: String? = null
+    
+    var onTokenRefreshed: ((idToken: String, refreshToken: String) -> Unit)? = null
 
     private val activeListeners = mutableMapOf<String, Job>()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    fun initAuth(token: String, uid: String) {
+    fun initAuth(token: String, uid: String, refresh: String? = null) {
         authToken = token
         currentUid = uid
+        refreshToken = refresh
+    }
+
+    suspend fun refreshAuthToken(): Boolean {
+        val refresh = refreshToken ?: return false
+        return withContext(Dispatchers.IO) {
+            val url = "https://securetoken.googleapis.com/v1/token?key=$FIREBASE_API_KEY"
+            val body = FormBody.Builder()
+                .add("grant_type", "refresh_token")
+                .add("refresh_token", refresh)
+                .build()
+            
+            val request = Request.Builder().url(url).post(body).build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val json = response.body?.string() ?: ""
+                        val obj = JsonParser.parseString(json).asJsonObject
+                        val newIdToken = obj.get("id_token").asString
+                        val newRefreshToken = obj.get("refresh_token").asString
+                        
+                        authToken = newIdToken
+                        refreshToken = newRefreshToken
+                        
+                        withContext(Dispatchers.Main) {
+                            onTokenRefreshed?.invoke(newIdToken, newRefreshToken)
+                        }
+                        println("FirebaseClient: Token refreshed successfully.")
+                        true
+                    } else {
+                        println("FirebaseClient: Token refresh failed: ${response.code}")
+                        false
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
     }
 
     fun isAuthorized(): Boolean {
@@ -124,6 +168,14 @@ object FirebaseClient {
             val request = Request.Builder().url(url).get().build()
             try {
                 client.newCall(request).execute().use { response ->
+                    if (response.code == 401 && refreshToken != null) {
+                        println("FirebaseClient: 401 on read. Refreshing...")
+                        if (refreshAuthToken()) {
+                            read(path, onResult) // Retry once
+                            return@launch
+                        }
+                    }
+                    
                     if (response.isSuccessful) {
                         onResult(response.body?.string())
                     } else {
@@ -162,10 +214,19 @@ object FirebaseClient {
                     
                     if (response.code == 401) {
                         response.close()
-                        println("FirebaseClient: 401 Unauthorized on $path. Retrying in ${retryDelay/1000}s...")
-                        delay(retryDelay)
-                        retryDelay = (retryDelay * 2).coerceAtMost(30000L)
-                        continue
+                        println("FirebaseClient: 401 Unauthorized on $path. Attempting token refresh...")
+                        
+                        val refreshed = refreshAuthToken()
+                        if (refreshed) {
+                            println("FirebaseClient: Refresh success, restarting listener for $path.")
+                            continue // Retry with new token immediately
+                        } else {
+                            println("FirebaseClient: Refresh failed. Notifying Auth Error for $path.")
+                            withContext(Dispatchers.Main) { onAuthError() }
+                            delay(retryDelay)
+                            retryDelay = (retryDelay * 2).coerceAtMost(30000L)
+                            continue
+                        }
                     }
 
                     if (!response.isSuccessful) {
@@ -186,6 +247,10 @@ object FirebaseClient {
                                 currentEvent = line.substring(6).trim()
                             } else if (line.startsWith("data:")) {
                                 val rawData = line.substring(5).trim()
+                                
+                                // Only process data events (put/patch)
+                                if (currentEvent != "put" && currentEvent != "patch") continue
+                                
                                 if (rawData == "null") {
                                     onUpdate(currentEvent, "", "null")
                                     continue
@@ -201,7 +266,7 @@ object FirebaseClient {
                                     }
                                     onUpdate(currentEvent, childPath, dataJson)
                                 } catch (e: Exception) {
-                                    // Sometimes data contains direct values or non-objects (e.g. auth_revoked or keep-alive)
+                                    // Sometimes data contains direct values or non-objects
                                     onUpdate(currentEvent, "", rawData)
                                 }
                             }

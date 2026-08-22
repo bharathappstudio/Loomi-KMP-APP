@@ -152,19 +152,23 @@ fun MainScreen(
         delay(1000) // Increase delay to allow token stability
 
         FirebaseClient.startListener("users", onAuthError = { 
-            // Silent auth retry logic is now in FirebaseClient, so we just log here
-            println("MainScreen: Auth issue on 'users' listener. Waiting for retry...")
+            println("MainScreen: Critical Auth Failure on 'users'. Logging out.")
+            onLogout()
         }) { _, path, json ->
             scope.launch(Dispatchers.Main) {
                 try {
-                    if (path == "" || path == "/" && json == "null") {
+                    if ((path == "" || path == "/") && json == "null") {
                         usersList.clear()
                         LocalCacheManager.saveUsers(usersList)
                         return@launch
                     }
-                    if (json == "null" && path != "" && path != "/") {
-                        // handled in the else block below
-                    } else if (json == "null") return@launch
+                    
+                    if (json == "null" && path.isNotEmpty() && path != "/") {
+                        val key = path.split("/").firstOrNull { it.isNotEmpty() } ?: return@launch
+                        usersList.removeAll { it.uid == key }
+                        LocalCacheManager.saveUsers(usersList)
+                        return@launch
+                    }
 
                     if (path == "" || path == "/") {
                         val type = object : TypeToken<Map<String, Map<String, Any>>>() {}.type
@@ -353,10 +357,14 @@ fun MainScreen(
         }) { event, childPath, json ->
             scope.launch(Dispatchers.Default) {
                 if (json == "null") {
-                    if (childPath == "" || childPath == "/") {
-                        withContext(Dispatchers.Main) {
+                    withContext(Dispatchers.Main) {
+                        if (childPath == "" || childPath == "/") {
                             messagesList.clear()
                             LocalCacheManager.removeChat(chatId)
+                        } else {
+                            val msgId = childPath.removePrefix("/")
+                            messagesList.removeAll { it.id == msgId }
+                            LocalCacheManager.saveMessages(chatId, messagesList)
                         }
                     }
                     return@launch
