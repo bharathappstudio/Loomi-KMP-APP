@@ -85,8 +85,8 @@ compose.desktop {
         
         val osName = System.getProperty("os.name").lowercase()
         
-        // Use JAVA_HOME if available, otherwise fallback to Linux default for packaging
-        (System.getenv("JAVA_HOME") ?: if (osName.contains("linux")) "/usr/lib/jvm/java-17-openjdk" else null)?.let {
+        // Trust the environment's JAVA_HOME set by the build system/CI
+        System.getenv("JAVA_HOME")?.let {
             javaHome = it
         }
 
