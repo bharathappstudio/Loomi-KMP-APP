@@ -112,10 +112,12 @@ compose.desktop {
             // Include all required modules for networking, SSL, and WebView
             modules("java.desktop", "java.net.http", "jdk.httpserver", "jdk.crypto.ec", "jdk.unsupported", "java.sql", "java.xml", "java.naming", "java.management", "java.instrument", "jdk.jsobject", "java.scripting", "jdk.unsupported.desktop")
 
-            // Windows (.exe), macOS (.dmg)
+            // Windows (.exe, .msi), macOS (.dmg), Linux (.deb)
             targetFormats(
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg, 
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe,
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb
             )
             packageName = "Loomi"
             packageVersion = "1.0.0"
@@ -130,6 +132,13 @@ compose.desktop {
                 shortcut = true
                 menu = true
                 upgradeUuid = "ce32039a-6539-4d6d-8e42-0f9c31e9674a"
+            }
+
+            // Linux specific
+            linux {
+                shortcut = true
+                menuGroup = "Network;Chat"
+                appCategory = "Network"
             }
         }
     }
