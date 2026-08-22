@@ -11,6 +11,8 @@ jobs:
   build:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -40,47 +42,20 @@ jobs:
       - name: Build Packages
         run: ./gradlew :desktop:${{ matrix.task }} --info
 
-      - name: Upload Artifacts
+      - name: Upload to Release
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
-        with:
-          name: binaries-${{ matrix.os }}
-          path: |
-            desktop/build/compose/binaries/main/deb/*.deb
-            desktop/build/compose/binaries/main/exe/*.exe
-            desktop/build/compose/binaries/main/msi/*.msi
-            desktop/build/compose/binaries/main/dmg/*.dmg
-          if-no-files-found: warn
-          retention-days: 1
-
-  release:
-    needs: build
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          pattern: binaries-*
-          merge-multiple: true
-
-      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
           name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'Loomi Desktop - Latest Build' }}
           files: |
-            artifacts/**/*.deb
-            artifacts/**/*.exe
-            artifacts/**/*.msi
-            artifacts/**/*.dmg
+            desktop/build/compose/binaries/main/deb/*.deb
+            desktop/build/compose/binaries/main/exe/*.exe
+            desktop/build/compose/binaries/main/msi/*.msi
+            desktop/build/compose/binaries/main/dmg/*.dmg
           generate_release_notes: true
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # The separate release job is no longer needed as each build job uploads directly
