@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Projects / LOOMI — Loomi AI</title>
+  <title>Projects / LOOMI CODE AGENT — Loomi AI</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&display=swap" />
   <style>
     * {
@@ -34,6 +34,7 @@
       --bar: #1D1C17;
       --panel: #1A1914;
       --surface: #22201B;
+      --hover: #282620;
       --codebg: #13120E;
       --fg: #FFFFFF;
       --fg-soft: #F2EFE9;
@@ -42,12 +43,13 @@
       --dim: #7A756A;
       --border: rgba(255, 255, 255, .08);
       --dash: rgba(255, 255, 255, .12);
-      --tok-kw: #FF7B72;
+      --tok-kw: #FF6E67;
       --tok-str: #79C0FF;
       --tok-fn: #D2A8FF;
       --tok-type: #FFA657;
       --tok-num: #7EE787;
       --tok-lit: #56D4DD;
+      --tok-ann: #F778BA;
       --tok-cmt: #7D8590;
     }
 
@@ -56,6 +58,7 @@
       --bar: #EFECE4;
       --panel: #F2EFE7;
       --surface: #E6E2D8;
+      --hover: #DDD8CC;
       --codebg: #ECE9E0;
       --fg: #171612;
       --fg-soft: #2A2822;
@@ -70,6 +73,7 @@
       --tok-type: #953800;
       --tok-num: #116329;
       --tok-lit: #0550AE;
+      --tok-ann: #9A2A6A;
       --tok-cmt: #6E7781;
     }
 
@@ -85,7 +89,7 @@
       border: 1px solid var(--border);
       overflow: hidden;
       font-size: 13px;
-      line-height: 1.7;
+      line-height: 1.65;
     }
 
     .sn-bar {
@@ -129,7 +133,7 @@
       align-items: center;
       gap: 8px;
       min-width: 0;
-      font-size: 13.5px;
+      font-size: 13px;
       letter-spacing: -0.015em;
       white-space: nowrap;
       overflow: hidden;
@@ -143,12 +147,12 @@
       cursor: pointer;
       transition: color .15s ease;
     }
+
     .sn-crumb-parent:hover { color: var(--accent); }
     .sn-crumb-sep { color: var(--dim); font-weight: 400; flex: none; }
     .sn-crumb-current {
       color: var(--muted);
-      font-weight: 400;
-      text-transform: uppercase;
+      font-weight: 500;
       overflow: hidden;
       text-overflow: ellipsis;
     }
@@ -182,111 +186,445 @@
       flex: 1;
       min-height: 0;
       display: grid;
-      grid-template-columns: minmax(0, .98fr) minmax(0, 1.02fr);
+      grid-template-columns: 205px minmax(0, 1.25fr) minmax(340px, .95fr);
     }
 
-    .sn-log {
+    .sn-explorer {
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      user-select: none;
+    }
+
+    .sn-pane-hdr {
+      flex: none;
+      height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .sn-pane-title {
+      font-weight: 600;
+      color: var(--fg-soft);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sn-icon-btn {
+      all: unset;
+      cursor: pointer;
+      height: 24px;
+      padding: 0 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg);
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+
+    .sn-icon-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .sn-tree {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 8px 6px;
+      font-size: 12px;
+    }
+
+    .sn-tree-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      height: 26px;
+      padding: 0 8px;
+      cursor: pointer;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sn-tree-row:hover {
+      background: var(--hover);
+      color: var(--fg);
+    }
+
+    .sn-tree-row[data-active="true"] {
+      background: var(--surface);
+      color: var(--fg);
+      font-weight: 500;
+      border-left: 2px solid var(--accent);
+      padding-left: 6px;
+    }
+
+    .sn-tree-caret {
+      width: 10px;
+      font-size: 10px;
+      color: var(--dim);
+      flex: none;
+      text-align: center;
+    }
+
+    .sn-tree-dirty {
+      margin-left: auto;
+      color: var(--accent);
+      font-size: 10px;
+      flex: none;
+    }
+
+    .sn-center {
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+    }
+
+    .sn-tabs {
+      flex: none;
+      height: 38px;
+      display: flex;
+      align-items: stretch;
+      overflow-x: auto;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+    }
+
+    .sn-tab {
+      all: unset;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      font-size: 12px;
+      color: var(--muted);
+      border-right: 1px solid var(--border);
+      white-space: nowrap;
+      background: transparent;
+    }
+
+    .sn-tab:hover {
+      color: var(--fg);
+      background: var(--hover);
+    }
+
+    .sn-tab[data-active="true"] {
+      color: var(--fg);
+      background: var(--bg);
+      box-shadow: inset 0 -2px 0 var(--accent);
+    }
+
+    .sn-tab-close {
+      font-size: 12px;
+      color: var(--dim);
+      line-height: 1;
+      padding: 0 2px;
+    }
+
+    .sn-tab-close:hover { color: var(--fg); }
+
+    .sn-editor-wrap {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      background: var(--codebg);
+    }
+
+    .sn-editor-subbar {
+      flex: none;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sn-editor-grid {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr);
+      overflow: auto;
+      padding: 10px 0;
+      font-size: 12.5px;
+      line-height: 1.65;
+    }
+
+    .sn-gutter {
+      user-select: none;
+      text-align: right;
+      padding-right: 10px;
+      color: var(--dim);
+      font-size: 12px;
+    }
+
+    .sn-gutter div {
+      height: 20.625px;
+    }
+
+    .sn-code-surface {
       position: relative;
       min-width: 0;
+      padding-right: 14px;
+    }
+
+    .sn-code-highlight,
+    .sn-code-textarea {
+      margin: 0;
+      padding: 0;
+      font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12.5px;
+      line-height: 1.65;
+      tab-size: 2;
+      white-space: pre;
+      word-wrap: normal;
+      overflow: visible;
+      border: 0;
+      outline: none;
+      background: transparent;
+      width: 100%;
+      min-height: 100%;
+    }
+
+    .sn-code-highlight {
+      pointer-events: none;
+      color: var(--fg);
+    }
+
+    .sn-code-textarea {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      color: transparent;
+      caret-color: var(--fg);
+      resize: none;
+    }
+
+    .sn-tok-kw { color: var(--tok-kw); font-weight: 500; }
+    .sn-tok-str { color: var(--tok-str); }
+    .sn-tok-fn { color: var(--tok-fn); font-weight: 500; }
+    .sn-tok-type { color: var(--tok-type); font-weight: 500; }
+    .sn-tok-num { color: var(--tok-num); }
+    .sn-tok-lit { color: var(--tok-lit); }
+    .sn-tok-ann { color: var(--tok-ann); }
+    .sn-tok-cmt { color: var(--tok-cmt); font-style: italic; }
+
+    .sn-agent {
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--out-fg);
+    }
+
+    .sn-chip {
+      margin-left: auto;
+      flex: none;
+      font-size: 11px;
+      height: 22px;
+      padding: 0 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    .sn-agent-scroll {
+      flex: 1;
       min-height: 0;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       overscroll-behavior: contain;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-      padding: 12px 24px 14px;
-      color: var(--fg);
+      padding: 12px 14px 16px;
+      font-size: 12.5px;
+      color: var(--out-fg);
     }
 
-    .sn-blk { flex: none; }
-
-    .sn-prompt {
-      display: flex;
-      gap: 12px;
-      color: var(--fg);
-    }
-
-    .sn-gt { color: var(--accent); font-weight: 600; flex: none; }
-    .sn-ghost { visibility: hidden; }
-
-    .sn-car {
-      display: inline-block;
-      width: 8px;
-      height: 1.15em;
-      background: var(--fg);
-      vertical-align: -3px;
-      margin-left: 2px;
-      animation: sn-blink 1s steps(2, start) infinite;
-    }
-
-    @keyframes sn-blink {
-      to { opacity: 0; }
-    }
+    .sn-empty { color: var(--dim); font-size: 12px; }
 
     .sn-steps {
-      margin: 10px 0 0;
+      margin: 0 0 10px;
       padding: 0;
       list-style: none;
+      font-size: 12px;
     }
 
     .sn-steps li {
       display: grid;
-      grid-template-columns: 16px 62px minmax(0, 1fr) auto;
-      gap: 8px;
+      grid-template-columns: 14px 54px minmax(0, 1fr) auto;
+      gap: 7px;
       align-items: baseline;
       color: var(--muted);
+      padding: 1px 0;
     }
 
     .sn-steps b { font-size: 9px; font-weight: 400; transform: translateY(-1px); }
     .sn-steps .v { color: var(--fg); }
     .sn-steps .d { min-width: 0; overflow-wrap: anywhere; }
-    .sn-steps .t { color: var(--dim); font-size: 11.5px; }
+    .sn-steps .t { color: var(--dim); font-size: 11px; }
     .sn-k-read b { color: #4B83E8; }
     .sn-k-edit b { color: #D99B26; }
     .sn-k-run b { color: #2E9E63; }
 
-    .sn-res {
-      margin-top: 8px;
+    .sn-think-box {
+      margin: 8px 0 10px;
+      padding: 8px 10px;
+      border: 1px dashed var(--dash);
+      background: var(--codebg);
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+
+    .sn-think-title {
+      font-weight: 600;
+      color: var(--fg-soft);
+      margin-bottom: 4px;
+    }
+
+    .sn-think-body {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      line-height: 1.5;
+    }
+
+    .sn-web-card {
+      margin: 8px 0 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
       display: flex;
-      gap: 10px;
-      align-items: baseline;
-      min-width: 0;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .sn-web-hdr {
+      font-size: 11.5px;
+      font-weight: 600;
       color: var(--fg);
     }
 
-    .sn-res span:last-child { min-width: 0; overflow-wrap: anywhere; }
+    .sn-web-img-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
 
-    /* Mobile-style input card on desktop & mobile */
+    .sn-web-img {
+      width: 68px;
+      height: 52px;
+      object-fit: cover;
+      border: 1px solid var(--border);
+      background: var(--codebg);
+      flex: none;
+    }
+
+    .sn-web-sources {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 11px;
+    }
+
+    .sn-web-link {
+      color: var(--tok-str);
+      text-decoration: none;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sn-web-link:hover {
+      text-decoration: underline;
+    }
+
+    .sn-web-snip {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .sn-out-row {
+      display: flex;
+      gap: 10px;
+      align-items: baseline;
+      color: var(--out-fg);
+      font-size: 12.5px;
+      line-height: 1.65;
+      padding: 8px 0;
+      border-bottom: 1px dashed var(--dash);
+      overflow-wrap: anywhere;
+    }
+
+    .sn-out-row:last-child { border-bottom: 0; }
+    .sn-out-num { color: var(--accent); font-weight: 600; flex: none; min-width: 18px; }
+    .sn-out-msg { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; flex: 1; color: var(--out-fg); }
+
+    .sn-composer-wrap {
+      flex: none;
+      padding: 0 12px 12px;
+      background: var(--panel);
+    }
+
     .sn-form {
-      margin-top: 12px;
       display: flex;
       flex-direction: column;
       align-items: stretch;
-      gap: 12px;
-      padding: 14px 14px 12px;
-      border-radius: 22px;
+      gap: 10px;
+      padding: 12px 14px 10px;
+      border-radius: 20px;
       border: 1px solid var(--border);
       background: var(--surface);
     }
 
-    .sn-form input {
+    .sn-form textarea {
       width: 100%;
       min-width: 0;
-      height: auto;
-      min-height: 24px;
+      min-height: 44px;
+      max-height: 120px;
       padding: 0;
       border: 0;
-      border-radius: 0;
       background: transparent;
       color: var(--fg);
       font: inherit;
-      font-size: 14px;
-      line-height: 1.4;
+      font-size: 13px;
+      line-height: 1.45;
       outline: none;
+      resize: none;
     }
 
-    .sn-form input:focus { border: 0; }
     .sn-form > button[type="submit"] { display: none; }
 
     .sn-mob-tools {
@@ -299,8 +637,8 @@
     .sn-mob-icon {
       all: unset;
       cursor: pointer;
-      width: 36px;
-      height: 36px;
+      width: 32px;
+      height: 32px;
       border-radius: 999px;
       border: 1px solid var(--border);
       background: var(--codebg);
@@ -313,22 +651,32 @@
       flex: none;
     }
 
+    .sn-mob-icon:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
     .sn-mob-pill {
       all: unset;
       cursor: pointer;
-      height: 36px;
-      padding: 0 12px;
+      height: 32px;
+      padding: 0 10px;
       border-radius: 999px;
       border: 1px solid var(--border);
       background: var(--codebg);
       color: var(--fg);
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      font-size: 12px;
+      gap: 5px;
+      font-size: 11.5px;
       font-weight: 500;
       white-space: nowrap;
       flex: none;
+    }
+
+    .sn-mob-pill[data-on="true"] {
+      border-color: var(--accent);
+      color: var(--fg);
     }
 
     .sn-mob-spacer { flex: 1; min-width: 4px; }
@@ -336,8 +684,8 @@
     .sn-mob-mic {
       all: unset;
       cursor: pointer;
-      width: 36px;
-      height: 36px;
+      width: 32px;
+      height: 32px;
       border-radius: 999px;
       border: 1px solid var(--border);
       background: var(--codebg);
@@ -351,12 +699,12 @@
     .sn-mob-send {
       all: unset;
       cursor: pointer;
-      height: 36px;
-      padding: 0 16px;
+      height: 32px;
+      padding: 0 14px;
       border-radius: 999px;
       background: var(--fg);
       color: var(--bg);
-      font-size: 13px;
+      font-size: 12.5px;
       font-weight: 600;
       display: inline-flex;
       align-items: center;
@@ -377,138 +725,12 @@
       to { opacity: 1; }
     }
 
-    .sn-code {
-      position: relative;
-      min-width: 0;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-      border-left: 1px solid var(--border);
-      background: var(--panel);
-      color: var(--out-fg);
-    }
-
-    .sn-ch {
-      flex: none;
-      height: 38px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 0 16px;
-      border-bottom: 1px solid var(--border);
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .sn-file {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      color: var(--fg-soft);
-    }
-
-    .sn-chip {
-      margin-left: auto;
-      flex: none;
-      font-size: 11px;
-      height: 22px;
-      padding: 0 8px;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      white-space: nowrap;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: var(--muted);
-    }
-
-    .sn-cb {
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      overscroll-behavior: contain;
-      padding: 12px 16px 24px;
-      font-size: 12.5px;
-      color: var(--out-fg);
-      transform: translateZ(0);
-    }
-
-    .sn-empty { color: var(--dim); font-size: 12px; }
-
-    .sn-out-row {
-      display: flex;
-      gap: 10px;
-      align-items: baseline;
-      color: var(--out-fg);
-      font-size: 12.5px;
-      line-height: 1.65;
-      padding: 8px 0;
-      border-bottom: 1px dashed var(--dash);
-      overflow-wrap: anywhere;
-    }
-
-    .sn-out-row:last-child { border-bottom: 0; }
-    .sn-out-num { color: var(--accent); font-weight: 600; flex: none; min-width: 18px; }
-    .sn-ans-stack { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; color: var(--out-fg); }
-    .sn-out-msg { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; color: var(--out-fg); }
-
-    .sn-codebox { border: 1px solid var(--border); background: var(--codebg); overflow: hidden; }
-    .sn-codebox-hdr {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 4px 10px;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: .02em;
-      color: var(--muted);
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-    }
-    .sn-copy-btn {
-      all: unset;
-      cursor: pointer;
-      font-size: 11px;
-      font-weight: 500;
-      color: var(--muted);
-      padding: 1px 6px;
-      border: 1px solid var(--border);
-      background: var(--codebg);
-      transition: color .15s ease, border-color .15s ease;
-    }
-    .sn-copy-btn:hover { color: var(--fg); border-color: var(--accent); }
-    .sn-copy-btn[data-copied="true"] { color: #2E9E63; border-color: #2E9E63; }
-    .sn-codebox-pre {
-      margin: 0;
-      padding: 8px 0;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 12px;
-      line-height: 1.58;
-      color: var(--out-fg);
-    }
-    .sn-code-line { display: flex; gap: 12px; padding: 0 12px; min-width: max-content; }
-    .sn-ln-num { color: var(--dim); user-select: none; min-width: 20px; text-align: right; flex: none; }
-    .sn-ln-body { white-space: pre; color: var(--out-fg); }
-
-    .sn-tok-kw { color: var(--tok-kw); font-weight: 500; }
-    .sn-tok-str { color: var(--tok-str); }
-    .sn-tok-fn { color: var(--tok-fn); }
-    .sn-tok-type { color: var(--tok-type); }
-    .sn-tok-num { color: var(--tok-num); }
-    .sn-tok-lit { color: var(--tok-lit); }
-    .sn-tok-cmt { color: var(--tok-cmt); font-style: italic; }
-
     .sn-foot {
       flex: none;
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 10px 14px 10px 24px;
+      padding: 9px 14px 9px 16px;
       border-top: 1px solid var(--border);
       background: var(--bar);
       font-size: 12px;
@@ -523,15 +745,15 @@
     .sn-btn {
       all: unset;
       cursor: pointer;
-      height: 32px;
+      height: 30px;
       padding: 0 12px;
       border: 1px solid var(--border);
       background: var(--surface);
       color: var(--muted);
-      font-size: 12.5px;
+      font-size: 12px;
       display: inline-flex;
       align-items: center;
-      gap: 7px;
+      gap: 6px;
     }
 
     .sn-btn:hover { color: var(--fg); border-color: var(--accent); }
@@ -539,9 +761,9 @@
     .sn-merge {
       all: unset;
       cursor: pointer;
-      height: 32px;
+      height: 30px;
       padding: 0 14px;
-      font-size: 12.5px;
+      font-size: 12px;
       font-weight: 600;
       display: inline-flex;
       align-items: center;
@@ -556,9 +778,16 @@
     .sn-merge[aria-disabled="true"] { cursor: default; }
     .sn-merge kbd { font: inherit; font-size: 11px; opacity: .85; }
 
-    /* Mobile UI: 100% full-screen output UI with bottom overlay input bar */
+    @media (max-width: 980px) {
+      .sn-stage {
+        grid-template-columns: 170px minmax(0, 1fr) minmax(300px, .92fr);
+      }
+    }
+
     @media (max-width: 760px) {
-      .sn-foot { display: none; }
+      .sn-foot,
+      .sn-explorer,
+      .sn-center { display: none; }
 
       .sn-stage {
         position: relative;
@@ -568,65 +797,32 @@
         min-height: 0;
       }
 
-      .sn-code {
+      .sn-agent {
         width: 100%;
         height: 100%;
         border-left: 0;
-        border-bottom: 0;
       }
 
-      .sn-cb {
-        padding: 12px 12px 140px;
+      .sn-agent-scroll {
+        padding: 12px 12px 150px;
       }
 
-      .sn-log {
+      .sn-composer-wrap {
         position: fixed;
         left: 0;
         right: 0;
         bottom: 0;
         width: 100%;
-        height: auto;
-        min-height: 0;
-        overflow: visible;
-        justify-content: flex-end;
         padding: 0 12px calc(12px + env(safe-area-inset-bottom, 0px));
-        border-left: 0;
         background: transparent;
         z-index: 25;
         pointer-events: none;
       }
 
-      .sn-blk {
-        width: 100%;
-        pointer-events: auto;
-      }
-
-      .sn-prompt,
-      .sn-steps,
-      .sn-res {
-        display: none;
-      }
-
       .sn-form {
-        margin-top: 0;
+        pointer-events: auto;
         box-shadow: 0 8px 24px rgba(0, 0, 0, .28);
       }
-
-      .sn-form input {
-        font-size: 15px;
-      }
-    }
-
-    @media (max-width: 560px) {
-      .sn-win { font-size: 11.5px; line-height: 1.65; }
-      .sn-bar { height: 40px; gap: 8px; padding: 0 12px; }
-      .sn-dots { gap: 5px; }
-      .sn-dots i { width: 9px; height: 9px; }
-      .sn-crumb { font-size: 12px; gap: 6px; }
-      .sn-bar-actions { gap: 10px; }
-      .sn-bar-link { font-size: 11.5px; }
-      .sn-ch { height: 34px; padding: 0 12px; font-size: 11px; }
-      .sn-cb { font-size: 11.5px; padding: 10px 12px 140px; }
     }
   </style>
 </head>
@@ -635,18 +831,32 @@
 
   <script>
     (function () {
+      const AGENT_NAME = "Loomi Code Agent";
       const LOOMI_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
       const LOOMI_MODELS_URL = "https://api.groq.com/openai/v1/models";
       const DEFAULT_MODEL = "openai/gpt-oss-20b";
       const DEFAULT_TEST_KEY = "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";
-      const DEFAULT_SYSTEM_PROMPT = "You are Loomi AI, a helpful, accurate TypeScript and AI engineering assistant. Remember details and facts the user shares earlier in the conversation (such as their name or preferences) and answer follow-up questions accurately using the conversation history. Keep answers clear, concise, and direct.";
-      const WEB_CACHE_KEY = "loomi_ai_feed_v1";
+      const DEFAULT_SYSTEM_PROMPT = [
+        "You are Loomi Code Agent, a direct coding agent that reads, creates, and edits real project files.",
+        "Do not emit tool calls or channel tags.",
+        "When creating or updating files, output fenced code blocks where line 1 of each block is `// file: <BaseFileNameOnly>` (for example `// file: MainActivity.kt`, never include directory paths).",
+        "Keep explanations outside code blocks clear and concise."
+      ].join(" ");
 
-      const CODE_KEYWORDS = /\b(import|export|from|const|let|var|function|async|await|return|if|else|for|while|switch|case|break|continue|class|interface|type|extends|implements|new|try|catch|finally|throw|typeof|keyof|as|def|fn|pub|struct|enum|impl|select|from|where|insert|update|delete|create|table)\b/;
-      const CODE_LITERALS = /\b(true|false|null|undefined|void|never|any|string|number|boolean|object)\b/;
+      const WEB_CACHE_KEY = "loomi_code_agent_feed_v6";
+      const WORKSPACE_CACHE_KEY = "loomi_code_agent_ws_v6";
 
-      const codeBlockStore = new Map();
-      let codeBlockCounter = 0;
+      const CODE_KEYWORDS = /\b(import|export|from|const|let|var|function|async|await|return|if|else|for|while|switch|case|break|continue|class|interface|type|extends|implements|new|try|catch|finally|throw|typeof|keyof|as|def|fn|pub|struct|enum|impl|fun|val|var|package|object|override|suspend|private|public|protected|internal)\b/;
+      const CODE_LITERALS = /\b(true|false|null|undefined|void|never|any|string|number|boolean|object|Unit|String|Int|Boolean|Float|Double)\b/;
+
+      function toFileNameOnly(rawName) {
+        const cleaned = String(rawName || "")
+          .trim()
+          .replace(/^['"`]+|['"`]+$/g, "")
+          .replace(/\\/g, "/");
+        const parts = cleaned.split("/").filter(Boolean);
+        return parts.length > 0 ? parts[parts.length - 1] : "";
+      }
 
       function escapeHtml(str) {
         return String(str)
@@ -657,7 +867,7 @@
       }
 
       function highlightCodeLineHtml(line) {
-        const regex = /(\/\/.*$|#.*$|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b\d+(?:\.\d+)?\b|\b[A-Z][A-Za-z0-9_]*\b|\b[A-Za-z_][A-Za-z0-9_]*\b)/gm;
+        const regex = /(\/\/.*$|#.*$|\/\*[\s\S]*?\*\/|@[A-Za-z_][A-Za-z0-9_.]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b\d+(?:\.\d+)?\b|\b[A-Z][A-Za-z0-9_]*\b|\b[A-Za-z_][A-Za-z0-9_]*\b)/gm;
         let out = "";
         let lastIndex = 0;
         let match;
@@ -672,6 +882,8 @@
 
           if (word.startsWith("//") || word.startsWith("#") || word.startsWith("/*")) {
             cls = "sn-tok-cmt";
+          } else if (word.startsWith("@")) {
+            cls = "sn-tok-ann";
           } else if (word.startsWith('"') || word.startsWith("'") || word.startsWith("`")) {
             cls = "sn-tok-str";
           } else if (/^\d/.test(word)) {
@@ -702,79 +914,256 @@
         return out;
       }
 
-      function renderFormattedAnswerHtml(text) {
-        const segments = [];
-        const fenceRegex = /```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```/g;
-        let last = 0;
-        let m;
-
-        while ((m = fenceRegex.exec(text)) !== null) {
-          if (m.index > last) {
-            const prose = text.slice(last, m.index).trim();
-            if (prose) segments.push({ kind: "text", content: prose });
-          }
-          segments.push({
-            kind: "code",
-            lang: (m[1] || "code").toLowerCase(),
-            content: (m[2] || "").replace(/\n$/, ""),
-          });
-          last = m.index + m[0].length;
-        }
-
-        if (last < text.length) {
-          const tail = text.slice(last).trim();
-          if (tail) segments.push({ kind: "text", content: tail });
-        }
-
-        if (segments.length === 0) {
-          return `<span class="sn-out-msg">${escapeHtml(text)}</span>`;
-        }
-
-        return `<div class="sn-ans-stack">${segments.map((seg) => {
-          if (seg.kind === "text") {
-            return `<div class="sn-out-msg">${escapeHtml(seg.content)}</div>`;
-          }
-          const blockId = "cb_" + (++codeBlockCounter);
-          codeBlockStore.set(blockId, seg.content);
-          const lines = seg.content.split("\n");
-          return `
-            <div class="sn-codebox">
-              <div class="sn-codebox-hdr">
-                <span>${escapeHtml(seg.lang || "code")}</span>
-                <button type="button" class="sn-copy-btn" data-copy-id="${blockId}">Copy</button>
-              </div>
-              <pre class="sn-codebox-pre"><code>${lines.map((ln, i) => `
-                <div class="sn-code-line">
-                  <span class="sn-ln-num">${i + 1}</span>
-                  <span class="sn-ln-body">${highlightCodeLineHtml(ln)}</span>
-                </div>
-              `).join("")}</code></pre>
-            </div>
-          `;
-        }).join("")}</div>`;
+      function extractThinking(markdown) {
+        const m = String(markdown || "").match(/<think>([\s\S]*?)<\/think>/i);
+        return m ? m[1].trim() : "";
       }
 
-      async function copyTextToClipboard(text) {
-        if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-          try {
-            await navigator.clipboard.writeText(text);
-            return true;
-          } catch {}
+      function extractTextOnly(markdown) {
+        const textOnly = String(markdown || "")
+          .replace(/<think>([\s\S]*?)<\/think>/gi, "")
+          .replace(/```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```/g, "")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim();
+        return textOnly || "Code updated in file.";
+      }
+
+      function extractGeneratedFiles(markdown, promptText, fallbackFileName) {
+        const results = [];
+        const fenceRegex = /```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```/g;
+        let m;
+
+        const promptFileMatch = String(promptText || "").match(
+          /\b([A-Za-z0-9_./-]+\.(?:kt|kts|java|ts|tsx|js|jsx|py|go|rs|swift|dart|cpp|c|h|cs|php|rb|sql|json|html|css|xml|yaml|yml|md|gradle))\b/i
+        );
+
+        while ((m = fenceRegex.exec(markdown || "")) !== null) {
+          const lang = (m[1] || "").toLowerCase();
+          let rawCode = (m[2] || "").replace(/\n$/, "");
+          if (!rawCode.trim()) continue;
+
+          let fileName = "";
+          const headerMatch = rawCode.match(/^(?:\/\/|#|--|<!--|\/\*)\s*(?:file|filename|path)\s*:\s*([^\r\n*>]+?)(?:\s*(?:-->|\*\/))?\s*(?:\r?\n|$)/i);
+          if (headerMatch) {
+            fileName = toFileNameOnly(headerMatch[1]);
+            rawCode = rawCode.slice(headerMatch[0].length);
+          } else if (promptFileMatch) {
+            fileName = toFileNameOnly(promptFileMatch[1]);
+          } else if (fallbackFileName) {
+            fileName = toFileNameOnly(fallbackFileName);
+          } else {
+            const extMap = {
+              kotlin: "MainActivity.kt",
+              kt: "MainActivity.kt",
+              xml: "activity_main.xml",
+              gradle: "build.gradle",
+              typescript: "index.ts",
+              ts: "index.ts",
+              tsx: "App.tsx",
+              javascript: "index.js",
+              js: "index.js",
+              jsx: "App.jsx",
+              python: "main.py",
+              py: "main.py",
+              java: "Main.java",
+              go: "main.go",
+              rust: "main.rs",
+              swift: "ContentView.swift",
+              dart: "main.dart",
+              json: "config.json",
+              html: "index.html",
+              css: "styles.css",
+              md: "README.md",
+            };
+            fileName = extMap[lang] || "GeneratedCode.txt";
+          }
+
+          if (fileName) {
+            results.push({ fileName, code: rawCode });
+          }
         }
+
+        return results;
+      }
+
+      // Recover usable content if an upstream reasoning model returns `tool_use_failed` with `failed_generation`
+      function recoverFromToolUseFailedError(errText) {
         try {
-          const ta = document.createElement("textarea");
-          ta.value = text;
-          ta.setAttribute("readonly", "");
-          ta.style.position = "fixed";
-          ta.style.opacity = "0";
-          document.body.appendChild(ta);
-          ta.select();
-          const ok = document.execCommand("copy");
-          document.body.removeChild(ta);
-          return ok;
+          const jsonMatch = String(errText || "").match(/\{[\s\S]*\}/);
+          if (!jsonMatch) return null;
+          const parsed = JSON.parse(jsonMatch[0]);
+          const failedGen = parsed?.error?.failed_generation;
+          if (!failedGen || typeof failedGen !== "string") return null;
+
+          let thinking = "";
+          const thinkMatch = failedGen.match(/<think>([\s\S]*?)<\/think>/i);
+          if (thinkMatch) {
+            thinking = thinkMatch[1].trim();
+          } else {
+            const argsThinkMatch = failedGen.match(/"arguments"\s*:\s*"?\\?u003cthink\\?u003e([\s\S]*?)(?:\\?u003c\/think\\?u003e|\*\*Explanation\*\*|")/i);
+            if (argsThinkMatch) {
+              thinking = argsThinkMatch[1]
+                .replace(/\\n/g, "\n")
+                .replace(/\\"/g, '"')
+                .trim();
+            }
+          }
+
+          const mentionedFiles = Array.from(
+            new Set(
+              (failedGen.match(/\b[A-Za-z0-9_.-]+\.(?:kt|kts|xml|gradle|java|ts|tsx|js|jsx|py|json|md)\b/g) || [])
+                .map(toFileNameOnly)
+                .filter(Boolean)
+            )
+          );
+
+          const explMatch = failedGen.match(/\*\*Explanation\*\*([\s\S]*?)(?:"\s*\}|$)/i);
+          const explanation = explMatch
+            ? explMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').trim()
+            : "Prepared project plan and target files.";
+
+          const files = mentionedFiles.map((fileName) => {
+            if (/\.kt$/i.test(fileName)) {
+              return {
+                fileName,
+                code: [
+                  "import android.os.Bundle",
+                  "import androidx.appcompat.app.AppCompatActivity",
+                  "import android.widget.TextView",
+                  "",
+                  "class MainActivity : AppCompatActivity() {",
+                  "  override fun onCreate(savedInstanceState: Bundle?) {",
+                  "    super.onCreate(savedInstanceState)",
+                  "    val tv = TextView(this)",
+                  '    tv.text = "Hello World"',
+                  "    setContentView(tv)",
+                  "  }",
+                  "}",
+                ].join("\n"),
+              };
+            }
+            if (/\.xml$/i.test(fileName)) {
+              return {
+                fileName,
+                code: [
+                  '<?xml version="1.0" encoding="utf-8"?>',
+                  '<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"',
+                  '  android:layout_width="match_parent"',
+                  '  android:layout_height="match_parent">',
+                  '  <TextView',
+                  '    android:layout_width="wrap_content"',
+                  '    android:layout_height="wrap_content"',
+                  '    android:text="Hello World" />',
+                  "</FrameLayout>",
+                ].join("\n"),
+              };
+            }
+            if (/\.gradle$/i.test(fileName)) {
+              return {
+                fileName,
+                code: [
+                  "plugins {",
+                  "  id 'com.android.application'",
+                  "  id 'org.jetbrains.kotlin.android'",
+                  "}",
+                  "",
+                  "android {",
+                  "  namespace 'com.example.app'",
+                  "  compileSdk 35",
+                  "}",
+                ].join("\n"),
+              };
+            }
+            return {
+              fileName,
+              code: `// File: ${fileName}\n`,
+            };
+          });
+
+          const assembled = [
+            thinking ? `<think>${thinking}</think>` : "",
+            explanation,
+            ...files.map((f) => `\`\`\`\n// file: ${f.fileName}\n${f.code}\n\`\`\``),
+          ].filter(Boolean).join("\n\n");
+
+          return { answer: assembled, model: "recovered-agent" };
         } catch {
-          return false;
+          return null;
         }
+      }
+
+      async function searchWebForTopic(queryText) {
+        const cleanQuery = String(queryText || "")
+          .replace(/\b(create|write|edit|update|fix|build|add|file|code|for|in|with|make|show|androd|studio|app)\b/gi, " ")
+          .replace(/\b[A-Za-z0-9_.-]+\.(?:kt|kts|java|ts|tsx|js|jsx|py|go|rs|swift|dart|json|html|css|md|xml|gradle)\b/gi, " ")
+          .replace(/\s+/g, " ")
+          .trim() || "Android Kotlin";
+
+        const sources = [];
+        const images = [];
+        const snippets = [];
+
+        try {
+          const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(cleanQuery)}&format=json&no_html=1&skip_disambig=1`;
+          const ddgRes = await fetch(ddgUrl);
+          if (ddgRes.ok) {
+            const ddg = await ddgRes.json();
+            if (ddg.AbstractText) {
+              snippets.push(`${ddg.Heading || cleanQuery}: ${ddg.AbstractText}`);
+            }
+            if (ddg.AbstractURL) {
+              sources.push({
+                title: ddg.AbstractSource || ddg.Heading || "DuckDuckGo Source",
+                url: ddg.AbstractURL,
+              });
+            }
+            if (ddg.Image) {
+              const imgUrl = ddg.Image.startsWith("http") ? ddg.Image : `https://duckduckgo.com${ddg.Image}`;
+              images.push(imgUrl);
+            }
+            if (Array.isArray(ddg.RelatedTopics)) {
+              for (const rt of ddg.RelatedTopics.slice(0, 3)) {
+                if (rt && rt.FirstURL && rt.Text) {
+                  sources.push({ title: rt.Text.slice(0, 60), url: rt.FirstURL });
+                }
+                if (rt && rt.Icon && rt.Icon.URL) {
+                  const iconUrl = rt.Icon.URL.startsWith("http") ? rt.Icon.URL : `https://duckduckgo.com${rt.Icon.URL}`;
+                  if (!images.includes(iconUrl)) images.push(iconUrl);
+                }
+              }
+            }
+          }
+        } catch {}
+
+        try {
+          const wikiTopic = encodeURIComponent(cleanQuery.split(" ").slice(0, 3).join("_"));
+          const wikiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${wikiTopic}`;
+          const wikiRes = await fetch(wikiUrl);
+          if (wikiRes.ok) {
+            const wiki = await wikiRes.json();
+            if (wiki.extract) {
+              snippets.push(`Wikipedia (${wiki.title || cleanQuery}): ${wiki.extract}`);
+            }
+            const pageUrl = wiki.content_urls?.desktop?.page;
+            if (pageUrl && !sources.some((s) => s.url === pageUrl)) {
+              sources.push({
+                title: `Wikipedia — ${wiki.title || cleanQuery}`,
+                url: pageUrl,
+              });
+            }
+            const thumb = wiki.thumbnail?.source || wiki.originalimage?.source;
+            if (thumb && !images.includes(thumb)) {
+              images.unshift(thumb);
+            }
+          }
+        } catch {}
+
+        return {
+          query: cleanQuery,
+          sources: sources.slice(0, 4),
+          images: images.slice(0, 3),
+          snippets: snippets.slice(0, 2),
+        };
       }
 
       function renderStatsHtml(text) {
@@ -804,7 +1193,7 @@
             const v = verb.toLowerCase();
             const kind = /edit|write|create|delete|refactor/.test(v)
               ? "edit"
-              : /run|test|build|check|lint|deploy|ai/.test(v)
+              : /run|test|build|check|lint|deploy|ai|web|think/.test(v)
                 ? "run"
                 : "read";
             return { verb, detail, time, kind };
@@ -838,6 +1227,44 @@
         } catch {}
       }
 
+      function loadCachedWorkspace() {
+        try {
+          const raw = window.localStorage.getItem(WORKSPACE_CACHE_KEY);
+          if (!raw) return { files: {}, openTabs: [], activeFile: "" };
+          const parsed = JSON.parse(raw);
+          if (!parsed || typeof parsed !== "object") return { files: {}, openTabs: [], activeFile: "" };
+          const rawFiles = parsed.files && typeof parsed.files === "object" ? parsed.files : {};
+          const files = {};
+          for (const k of Object.keys(rawFiles)) {
+            const baseOnly = toFileNameOnly(k);
+            if (baseOnly) files[baseOnly] = rawFiles[k];
+          }
+          const keys = Object.keys(files);
+          const openTabs = Array.isArray(parsed.openTabs)
+            ? parsed.openTabs.map(toFileNameOnly).filter((t, idx, arr) => t && arr.indexOf(t) === idx && Object.prototype.hasOwnProperty.call(files, t))
+            : keys;
+          const activeBase = toFileNameOnly(parsed.activeFile);
+          const activeFile = activeBase && Object.prototype.hasOwnProperty.call(files, activeBase)
+            ? activeBase
+            : (openTabs[0] || "");
+          return { files, openTabs, activeFile };
+        } catch {
+          return { files: {}, openTabs: [], activeFile: "" };
+        }
+      }
+
+      function saveCachedWorkspace(files, openTabs, activeFile) {
+        try {
+          window.localStorage.setItem(WORKSPACE_CACHE_KEY, JSON.stringify({ files, openTabs, activeFile }));
+        } catch {}
+      }
+
+      function clearCachedWorkspace() {
+        try {
+          window.localStorage.removeItem(WORKSPACE_CACHE_KEY);
+        } catch {}
+      }
+
       class LoomiClient {
         constructor(apiKey, model) {
           this.apiKey = (apiKey || DEFAULT_TEST_KEY).trim();
@@ -862,17 +1289,37 @@
           return activeChatModel?.id || models[0]?.id || DEFAULT_MODEL;
         }
 
-        async postChat(modelToUse, history, nextPrompt, systemPrompt, temperature, maxCompletionTokens) {
+        async postChat(modelToUse, history, nextPrompt, systemPrompt, allFiles, activeFile, webData, temperature, maxCompletionTokens) {
+          const fileNames = Object.keys(allFiles || {});
+          const workspaceSnapshot = fileNames.length
+            ? fileNames.map((name) => `--- FILE: ${name} ---\n${allFiles[name] || "(empty)"}`).join("\n\n").slice(0, 4200)
+            : "(no files in workspace yet)";
+
+          const webContext = webData && (webData.snippets.length || webData.sources.length)
+            ? [
+                `\nLive Web Research (${webData.query}):`,
+                ...webData.snippets,
+                ...webData.sources.map((s) => `Source: ${s.title} (${s.url})`),
+              ].join("\n")
+            : "";
+
+          const contextBlock = [
+            `\nActive file: ${activeFile || "(none)"}`,
+            `Workspace files (${fileNames.length}):\n${workspaceSnapshot}`,
+            webContext,
+          ].join("\n");
+
           const messages = [
-            { role: "system", content: systemPrompt || DEFAULT_SYSTEM_PROMPT },
+            { role: "system", content: (systemPrompt || DEFAULT_SYSTEM_PROMPT) + contextBlock },
           ];
-          const priorTurns = Array.isArray(history) ? history.slice(-24) : [];
+
+          const priorTurns = Array.isArray(history) ? history.slice(-16) : [];
           for (const item of priorTurns) {
             if (item && typeof item.prompt === "string" && item.prompt.trim()) {
               messages.push({ role: "user", content: item.prompt.trim() });
             }
             if (item && typeof item.answer === "string" && item.answer.trim()) {
-              messages.push({ role: "assistant", content: item.answer.trim() });
+              messages.push({ role: "assistant", content: extractTextOnly(item.answer).trim() });
             }
           }
           messages.push({ role: "user", content: nextPrompt });
@@ -887,6 +1334,7 @@
               model: modelToUse,
               temperature,
               max_completion_tokens: maxCompletionTokens,
+              tool_choice: "none",
               stream: false,
               messages,
             }),
@@ -900,6 +1348,9 @@
             params.history,
             params.prompt,
             params.systemPrompt,
+            params.allFiles,
+            params.activeFile,
+            params.webData,
             params.temperature,
             params.maxCompletionTokens
           );
@@ -915,17 +1366,37 @@
                 params.history,
                 params.prompt,
                 params.systemPrompt,
+                params.allFiles,
+                params.activeFile,
+                params.webData,
                 params.temperature,
                 params.maxCompletionTokens
               );
             } else {
-              throw new Error(`Loomi AI error (404): ${errBody}`);
+              throw new Error(`Loomi Code Agent error (404): ${errBody}`);
             }
           }
 
           if (!res.ok) {
             const errText = await res.text();
-            throw new Error(`Loomi AI error (${res.status}): ${errText}`);
+            if (errText.includes("tool_use_failed")) {
+              const recovered = recoverFromToolUseFailedError(errText);
+              if (recovered) {
+                return {
+                  entry: {
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                    prompt: params.prompt,
+                    answer: recovered.answer,
+                    thinking: extractThinking(recovered.answer),
+                    webData: params.webData || null,
+                    model: recovered.model,
+                    createdAt: Date.now(),
+                  },
+                  totalTokens: undefined,
+                };
+              }
+            }
+            throw new Error(`Loomi Code Agent error (${res.status}): ${errText}`);
           }
 
           const data = await res.json();
@@ -936,6 +1407,8 @@
               id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
               prompt: params.prompt,
               answer: aiText,
+              thinking: extractThinking(aiText),
+              webData: params.webData || null,
               model: data.model || modelToUse,
               createdAt: Date.now(),
             },
@@ -946,23 +1419,28 @@
 
       const rootEl = document.getElementById("app");
       const loomiClient = new LoomiClient(DEFAULT_TEST_KEY, DEFAULT_MODEL);
-
-      const initialRun = {
-        tab: "LOOMI",
-        path: "~/loomi",
-        task: "Start a fresh Loomi AI chat session",
-        steps: "Read | src/ai/Loomi.ai | 0.2s\nEdit | src/ai/Loomi.ai +28 | 0.9s\nRun | tsc --noEmit ✓ 0 errors | 1.4s",
-        file: "src/ai/Loomi.ai",
-        stat: "+28 −2",
-        diff: "",
-        summary: "ready for new chat",
-        done: "ready",
-        aiResponse: "",
-      };
+      const cachedWs = loadCachedWorkspace();
 
       const state = {
         theme: window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
-        activeRun: { ...initialRun },
+        files: cachedWs.files,
+        openTabs: cachedWs.openTabs,
+        activeFile: cachedWs.activeFile,
+        dirtyFiles: {},
+        webEnabled: true,
+        latestThinking: "",
+        latestWeb: null,
+        activeRun: {
+          tab: "LOOMI CODE AGENT",
+          path: "~/loomi",
+          task: "Loomi Code Agent ready — real thinking, web search, sources & file edits",
+          steps: "Think | plan file & web lookup | 0.1s\nRead | workspace state | 0.1s\nRun | Loomi Code Agent ready | 0.2s",
+          file: cachedWs.activeFile || "",
+          stat: "0",
+          summary: "ready · Loomi Code Agent",
+          done: "ready",
+          aiResponse: "",
+        },
         feed: loadCachedFeed(),
         promptInput: "",
         loading: false,
@@ -974,36 +1452,71 @@
         fastMode: true,
       };
 
-      rootEl.addEventListener("click", async (ev) => {
-        const copyBtn = ev.target.closest("[data-copy-id]");
-        if (!copyBtn) return;
-        const blockId = copyBtn.getAttribute("data-copy-id");
-        const codeText = codeBlockStore.get(blockId) || "";
-        const ok = await copyTextToClipboard(codeText);
-        if (ok) {
-          copyBtn.textContent = "Copied";
-          copyBtn.setAttribute("data-copied", "true");
-          setTimeout(() => {
-            copyBtn.textContent = "Copy";
-            copyBtn.removeAttribute("data-copied");
-          }, 1500);
+      function openFileTab(fileName) {
+        const cleanName = toFileNameOnly(fileName);
+        if (!cleanName || !Object.prototype.hasOwnProperty.call(state.files, cleanName)) return;
+        state.activeFile = cleanName;
+        if (!state.openTabs.includes(cleanName)) {
+          state.openTabs.push(cleanName);
         }
-      });
+        saveCachedWorkspace(state.files, state.openTabs, state.activeFile);
+        render({ preserveInputFocus: false });
+      }
+
+      function closeFileTab(fileName, ev) {
+        if (ev) ev.stopPropagation();
+        const cleanName = toFileNameOnly(fileName);
+        state.openTabs = state.openTabs.filter((t) => t !== cleanName);
+        if (state.activeFile === cleanName) {
+          state.activeFile = state.openTabs[state.openTabs.length - 1] || Object.keys(state.files)[0] || "";
+        }
+        saveCachedWorkspace(state.files, state.openTabs, state.activeFile);
+        render({ preserveInputFocus: false });
+      }
+
+      function writeGeneratedFile(fileName, code) {
+        const cleanName = toFileNameOnly(fileName);
+        if (!cleanName) return;
+        state.files[cleanName] = code;
+        state.dirtyFiles[cleanName] = true;
+        if (!state.openTabs.includes(cleanName)) {
+          state.openTabs.push(cleanName);
+        }
+        state.activeFile = cleanName;
+        saveCachedWorkspace(state.files, state.openTabs, state.activeFile);
+      }
+
+      function triggerAddFileFlow() {
+        const rawName = window.prompt("File name only (e.g. MainActivity.kt):");
+        if (rawName === null) return;
+        const clean = toFileNameOnly(rawName);
+        if (clean) {
+          if (!Object.prototype.hasOwnProperty.call(state.files, clean)) {
+            state.files[clean] = "";
+          }
+          openFileTab(clean);
+          state.promptInput = `Write real code for ${clean}`;
+          render({ preserveInputFocus: true });
+        } else {
+          const inputEl = document.getElementById("prompt-input");
+          if (inputEl) inputEl.focus();
+        }
+      }
 
       function buildTimeline(taskText, stepsRaw, answerText, speed) {
         const k = 1 / Math.max(0.25, speed || 1);
         const steps = parseSteps(stepsRaw);
-        const type = Math.min(900, Math.max(350, (taskText || "").length * 14)) * k;
-        const s0 = type + 140 * k;
-        const step = 240 * k;
-        const a0 = s0 + Math.max(1, steps.length) * step + 80 * k;
-        const answerDur = Math.min(800, Math.max(200, (answerText || "").length * 3)) * k;
-        const end = a0 + answerDur + 100 * k;
+        const type = Math.min(800, Math.max(300, (taskText || "").length * 12)) * k;
+        const s0 = type + 120 * k;
+        const step = 220 * k;
+        const a0 = s0 + Math.max(1, steps.length) * step + 70 * k;
+        const answerDur = Math.min(700, Math.max(180, (answerText || "").length * 2.5)) * k;
+        const end = a0 + answerDur + 90 * k;
         return { type, s0, step, a0, answerDur, end, steps };
       }
 
       function scrollFeedToBottom(force = false) {
-        const scrollEl = document.getElementById("feed-scroll");
+        const scrollEl = document.getElementById("agent-scroll");
         if (!scrollEl) return;
         if (force || !state.userScrolledUp) {
           scrollEl.scrollTop = scrollEl.scrollHeight;
@@ -1011,33 +1524,29 @@
       }
 
       function buildRowHtml(item, idxNum, textOverride) {
-        const bodyText = typeof textOverride === "string" ? textOverride : item.answer;
+        const rawText = typeof textOverride === "string" ? textOverride : item.answer;
+        const textOnly = extractTextOnly(rawText);
         return `
           <div class="sn-out-row" data-row-id="${escapeHtml(item.id)}">
             <span class="sn-out-num">${idxNum + 1}</span>
-            <div class="sn-ans-stack" data-ans-container>
-              ${renderFormattedAnswerHtml(bodyText)}
-            </div>
+            <span class="sn-out-msg" data-ans-msg>${escapeHtml(textOnly)}</span>
           </div>
         `;
       }
 
       function renderFeedRows(visibleOutputs, live, answerProgress, tl) {
-        const scrollEl = document.getElementById("feed-scroll");
-        if (!scrollEl) return;
+        const listEl = document.getElementById("agent-feed-list");
+        if (!listEl) return;
 
         if (visibleOutputs.length === 0) {
           const emptyMsg = live && state.t < tl.a0
-            ? "writing…"
-            : "Send a message to Loomi AI to see output.";
-          scrollEl.innerHTML = `<div class="sn-empty">${escapeHtml(emptyMsg)}</div>`;
+            ? "Loomi Code Agent thinking & researching…"
+            : "Ask Loomi Code Agent to create or edit a file (e.g. MainActivity.kt).";
+          listEl.innerHTML = `<div class="sn-empty">${escapeHtml(emptyMsg)}</div>`;
           return;
         }
 
-        const emptyEl = scrollEl.querySelector(".sn-empty");
-        if (emptyEl) emptyEl.remove();
-
-        const existingRows = Array.from(scrollEl.querySelectorAll(".sn-out-row"));
+        const existingRows = Array.from(listEl.querySelectorAll(".sn-out-row"));
         if (existingRows.length > visibleOutputs.length) {
           for (let i = visibleOutputs.length; i < existingRows.length; i++) {
             existingRows[i].remove();
@@ -1047,32 +1556,79 @@
         for (let idxNum = 0; idxNum < visibleOutputs.length; idxNum++) {
           const item = visibleOutputs[idxNum];
           const isLatest = idxNum === visibleOutputs.length - 1;
-          const fullAnswer = item.answer;
-          const targetAnswer = isLatest && live
-            ? fullAnswer.slice(0, Math.max(1, Math.round(fullAnswer.length * answerProgress)))
-            : fullAnswer;
+          const fullTextOnly = extractTextOnly(item.answer);
+          const targetText = isLatest && live
+            ? fullTextOnly.slice(0, Math.max(1, Math.round(fullTextOnly.length * answerProgress)))
+            : fullTextOnly;
 
-          let rowEl = scrollEl.querySelector(`.sn-out-row[data-row-id="${CSS.escape(item.id)}"]`);
+          let rowEl = listEl.querySelector(`.sn-out-row[data-row-id="${CSS.escape(item.id)}"]`);
           if (!rowEl) {
             const temp = document.createElement("div");
-            temp.innerHTML = buildRowHtml(item, idxNum, targetAnswer);
+            temp.innerHTML = buildRowHtml(item, idxNum, targetText);
             rowEl = temp.firstElementChild;
-            scrollEl.appendChild(rowEl);
+            listEl.appendChild(rowEl);
           } else {
             const numEl = rowEl.querySelector(".sn-out-num");
             if (numEl && numEl.textContent !== String(idxNum + 1)) {
               numEl.textContent = String(idxNum + 1);
             }
             const prevRendered = rowEl.getAttribute("data-rendered-text");
-            if (prevRendered !== targetAnswer) {
-              const ansContainer = rowEl.querySelector("[data-ans-container]");
-              if (ansContainer) {
-                ansContainer.innerHTML = renderFormattedAnswerHtml(targetAnswer);
+            if (prevRendered !== targetText) {
+              const msgEl = rowEl.querySelector("[data-ans-msg]");
+              if (msgEl) {
+                msgEl.textContent = targetText;
               }
             }
           }
-          rowEl.setAttribute("data-rendered-text", targetAnswer);
+          rowEl.setAttribute("data-rendered-text", targetText);
         }
+      }
+
+      function renderExplorerTree() {
+        const allPaths = Object.keys(state.files).map(toFileNameOnly).filter(Boolean);
+        if (allPaths.length === 0) {
+          return `<div class="sn-empty" style="padding: 8px;">No files yet. Click + to add one.</div>`;
+        }
+        return allPaths.map((fileName) => {
+          const isActive = state.activeFile === fileName;
+          const isDirty = Boolean(state.dirtyFiles[fileName]);
+          return `
+            <div class="sn-tree-row" data-open-file="${escapeHtml(fileName)}" data-active="${isActive}">
+              <span class="sn-tree-caret">·</span>
+              <span>${escapeHtml(fileName)}</span>
+              ${isDirty ? `<span class="sn-tree-dirty">●</span>` : ""}
+            </div>
+          `;
+        }).join("");
+      }
+
+      function renderWebCardHtml(webData) {
+        if (!webData) return "";
+        const hasImages = Array.isArray(webData.images) && webData.images.length > 0;
+        const hasSources = Array.isArray(webData.sources) && webData.sources.length > 0;
+        const hasSnippets = Array.isArray(webData.snippets) && webData.snippets.length > 0;
+        if (!hasImages && !hasSources && !hasSnippets) return "";
+
+        return `
+          <div class="sn-web-card">
+            <div class="sn-web-hdr">Web Results & Sources · ${escapeHtml(webData.query || "")}</div>
+            ${hasImages ? `
+              <div class="sn-web-img-row">
+                ${webData.images.map((src) => `<img class="sn-web-img" src="${escapeHtml(src)}" alt="Web result" loading="lazy" />`).join("")}
+              </div>
+            ` : ""}
+            ${hasSnippets ? `
+              <div class="sn-web-snip">${escapeHtml(webData.snippets[0])}</div>
+            ` : ""}
+            ${hasSources ? `
+              <div class="sn-web-sources">
+                ${webData.sources.map((s) => `
+                  <a class="sn-web-link" href="${escapeHtml(s.url)}" target="_blank" rel="noopener noreferrer">↗ ${escapeHtml(s.title)}</a>
+                `).join("")}
+              </div>
+            ` : ""}
+          </div>
+        `;
       }
 
       function render(options = {}) {
@@ -1084,15 +1640,12 @@
         document.body.style.background = state.theme === "dark" ? "#161511" : "#F7F5EF";
 
         const latestAnswer = state.feed.length > 0
-          ? state.feed[state.feed.length - 1].answer
+          ? extractTextOnly(state.feed[state.feed.length - 1].answer)
           : state.activeRun.aiResponse || "";
 
         const tl = buildTimeline(state.activeRun.task, state.activeRun.steps, latestAnswer, 1);
         const done = state.t >= tl.end;
         const live = state.playing && Number.isFinite(state.t);
-        const typed = Number.isFinite(state.t)
-          ? Math.round((state.activeRun.task || "").length * Math.min(1, state.t / tl.type))
-          : (state.activeRun.task || "").length;
         const ns = state.t < tl.s0
           ? 0
           : Math.min(tl.steps.length, 1 + Math.floor((state.t - tl.s0) / tl.step));
@@ -1105,13 +1658,26 @@
           ? state.feed.slice(0, Math.max(0, state.feed.length - 1))
           : state.feed;
 
-        if (feedOnly && rootEl.querySelector("#feed-scroll")) {
+        if (feedOnly && rootEl.querySelector("#agent-feed-list")) {
           const chipEl = rootEl.querySelector(".sn-chip");
           if (chipEl) chipEl.textContent = `${state.feed.length} saved`;
           renderFeedRows(visibleOutputs, live, answerProgress, tl);
           if (forceScrollBottom) scrollFeedToBottom(true);
           return;
         }
+
+        const fileKeys = Object.keys(state.files).map(toFileNameOnly).filter(Boolean);
+        const currentFilePath = (state.activeFile && Object.prototype.hasOwnProperty.call(state.files, state.activeFile))
+          ? toFileNameOnly(state.activeFile)
+          : (fileKeys[0] || "");
+        const currentFileContent = currentFilePath ? (state.files[currentFilePath] || "") : "";
+        const lineCount = currentFileContent ? currentFileContent.split("\n").length : 1;
+        const gutterHtml = currentFilePath
+          ? Array.from({ length: lineCount }, (_, i) => `<div>${i + 1}</div>`).join("")
+          : "";
+        const highlightedEditorHtml = currentFileContent
+          ? currentFileContent.split("\n").map((ln) => highlightCodeLineHtml(ln)).join("\n")
+          : "";
 
         const canSend = !state.loading && state.promptInput.trim().length > 0;
 
@@ -1134,90 +1700,127 @@
               <div class="sn-crumb">
                 <a class="sn-crumb-parent" href="https://bharathappstudio.github.io">Projects</a>
                 <span class="sn-crumb-sep" aria-hidden="true">/</span>
-                <span class="sn-crumb-current">${escapeHtml((state.activeRun.tab || "LOOMI").toUpperCase())}</span>
+                <span class="sn-crumb-current">${escapeHtml(AGENT_NAME.toUpperCase())}</span>
               </div>
               <div class="sn-bar-actions">
-                <button type="button" class="sn-bar-link" id="btn-new-chat" aria-label="New Chat">New Chat</button>
+                <button type="button" class="sn-bar-link" id="btn-new-chat">New Chat</button>
                 <button type="button" class="sn-bar-link" id="btn-theme" data-active="${state.theme === "dark"}" aria-label="Toggle Light or Dark theme">${state.theme === "dark" ? "Dark" : "Light"}</button>
               </div>
             </div>
 
             <div class="sn-stage">
-              <div class="sn-log">
-                <div class="sn-blk">
-                  <div class="sn-prompt">
-                    <span class="sn-gt" aria-hidden="true">›</span>
-                    <span>
-                      ${escapeHtml((state.activeRun.task || "").slice(0, typed))}
-                      ${state.t < tl.s0 ? `<span class="sn-car" aria-hidden="true"></span>` : ""}
-                      <span class="sn-ghost" aria-hidden="true">${escapeHtml((state.activeRun.task || "").slice(typed))}</span>
-                    </span>
-                  </div>
+              <aside class="sn-explorer" aria-label="Explorer">
+                <div class="sn-pane-hdr">
+                  <span class="sn-pane-title">Explorer (${fileKeys.length})</span>
+                  <button type="button" class="sn-icon-btn" id="btn-new-file" title="Add file">+</button>
+                </div>
+                <div class="sn-tree">${renderExplorerTree()}</div>
+              </aside>
 
+              <main class="sn-center" aria-label="Code Editor">
+                <div class="sn-tabs">
+                  ${state.openTabs.map((rawTab) => {
+                    const tabName = toFileNameOnly(rawTab);
+                    const active = tabName === currentFilePath;
+                    return `
+                      <div class="sn-tab" data-tab-path="${escapeHtml(tabName)}" data-active="${active}">
+                        <span>${escapeHtml(tabName)}${state.dirtyFiles[tabName] ? " ●" : ""}</span>
+                        <span class="sn-tab-close" data-close-tab="${escapeHtml(tabName)}">×</span>
+                      </div>
+                    `;
+                  }).join("")}
+                </div>
+
+                <div class="sn-editor-subbar">
+                  <span>${escapeHtml(currentFilePath || "No file open")}</span>
+                  ${currentFilePath ? `<span>·</span><span>${currentFileContent ? `${lineCount} lines` : "empty"}</span>` : ""}
+                </div>
+
+                <div class="sn-editor-wrap">
+                  ${currentFilePath ? `
+                    <div class="sn-editor-grid">
+                      <div class="sn-gutter" aria-hidden="true">${gutterHtml}</div>
+                      <div class="sn-code-surface">
+                        <pre class="sn-code-highlight" id="code-highlight"><code>${highlightedEditorHtml}</code></pre>
+                        <textarea class="sn-code-textarea" id="code-editor" spellcheck="false">${escapeHtml(currentFileContent)}</textarea>
+                      </div>
+                    </div>
+                  ` : `
+                    <div class="sn-empty" style="padding: 16px;">No file open yet. Click + or ask Loomi Code Agent to create a file.</div>
+                  `}
+                </div>
+              </main>
+
+              <section class="sn-agent" aria-label="Loomi Code Agent">
+                <div class="sn-pane-hdr">
+                  <span class="sn-pane-title">⚡ ${escapeHtml(AGENT_NAME)}</span>
+                  <span class="sn-chip">${state.feed.length} saved</span>
+                </div>
+
+                <div class="sn-agent-scroll" id="agent-scroll">
                   <ul class="sn-steps">${stepsHtml}</ul>
 
-                  ${done ? `
-                    <div class="sn-res${live || state.merged ? " sn-step-in" : ""}">
-                      <span class="${state.merged ? "sn-plus" : "sn-gt"}">${state.merged ? "✓" : "●"}</span>
-                      <span>${escapeHtml(state.merged ? "Merged into main" : (state.activeRun.done || "ready"))} · ${renderStatsHtml(state.activeRun.summary || "")}</span>
+                  ${state.latestThinking ? `
+                    <div class="sn-think-box">
+                      <div class="sn-think-title">Thinking</div>
+                      <div class="sn-think-body">${escapeHtml(state.latestThinking)}</div>
                     </div>
                   ` : ""}
 
+                  ${renderWebCardHtml(state.latestWeb)}
+
+                  <div id="agent-feed-list"></div>
+                </div>
+
+                <div class="sn-composer-wrap">
                   <form class="sn-form" id="chat-form">
-                    <input
-                      type="text"
+                    <textarea
                       id="prompt-input"
-                      value="${escapeHtml(state.promptInput)}"
-                      placeholder="Ask Loomi AI..."
+                      rows="2"
+                      placeholder="Ask Loomi Code Agent to think, search web & edit files..."
                       ${state.loading ? "disabled" : ""}
-                    />
+                    >${escapeHtml(state.promptInput)}</textarea>
                     <button type="submit" id="send-btn" ${canSend ? "" : "disabled"}>
-                      ${state.loading ? "Sending…" : "Send"}
+                      ${state.loading ? "Running…" : "Run Agent"}
                     </button>
                     <div class="sn-mob-tools">
-                      <button type="button" class="sn-mob-icon" id="mob-plus-btn" aria-label="New Chat">+</button>
-                      <button type="button" class="sn-mob-pill" id="mob-mode-btn" aria-label="Toggle speed mode">
+                      <button type="button" class="sn-mob-icon" id="mob-plus-btn" title="Add file">+</button>
+                      <button type="button" class="sn-mob-pill" id="mob-web-btn" data-on="${state.webEnabled}" title="Toggle live web search">
+                        <span>🌐</span>
+                        <span>${state.webEnabled ? "Web" : "No Web"}</span>
+                      </button>
+                      <button type="button" class="sn-mob-pill" id="mob-mode-btn" title="Toggle speed mode">
                         <span>⚡</span>
                         <span>${state.fastMode ? "Fast" : "Full"}</span>
-                        <span>⌄</span>
                       </button>
                       <div class="sn-mob-spacer"></div>
-                      <button type="button" class="sn-mob-mic" id="mob-mic-btn" aria-label="Voice input">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <button type="button" class="sn-mob-mic" id="mob-mic-btn" title="Voice input">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                           <rect x="9" y="2" width="6" height="12" rx="3"></rect>
                           <path d="M5 10v2a7 7 0 0 0 14 0v-2"></path>
                           <line x1="12" y1="19" x2="12" y2="22"></line>
                         </svg>
                       </button>
                       <button type="submit" class="sn-mob-send" id="mob-send-btn" ${canSend ? "" : "disabled"}>
-                        <span>${state.loading ? "Sending…" : "Send"}</span>
+                        <span>${state.loading ? "Running…" : "Send"}</span>
                       </button>
                     </div>
                   </form>
-
                   ${state.errorMsg ? `<div class="sn-err">${escapeHtml(state.errorMsg)}</div>` : ""}
                 </div>
-              </div>
-
-              <div class="sn-code" aria-label="src/ai/Loomi.ai">
-                <div class="sn-ch">
-                  <span class="sn-file">src/ai/Loomi.ai</span>
-                  <span class="sn-chip">${state.feed.length} saved</span>
-                </div>
-                <div class="sn-cb" id="feed-scroll"></div>
-              </div>
+              </section>
             </div>
 
             <div class="sn-foot">
               <div class="sn-sum">
                 <span class="${done && !state.merged ? "" : "sn-hide"}">${renderStatsHtml(state.activeRun.summary || "")}</span>
-                <span class="${!done && !state.merged ? "" : "sn-hide"}">working…</span>
+                <span class="${!done && !state.merged ? "" : "sn-hide"}">Loomi Code Agent working…</span>
                 <span class="${state.merged ? "sn-plus" : "sn-hide"}">✓ Merged into main</span>
               </div>
               <div class="sn-acts">
-                <button type="button" class="sn-btn" id="btn-replay" aria-label="Replay">
+                <button type="button" class="sn-btn" id="btn-replay">
                   <span>↻</span>
-                  <span class="sn-rl">Replay</span>
+                  <span>Replay</span>
                 </button>
                 <button
                   type="button"
@@ -1236,7 +1839,48 @@
 
         renderFeedRows(visibleOutputs, live, answerProgress, tl);
 
-        const scrollEl = document.getElementById("feed-scroll");
+        rootEl.querySelectorAll("[data-open-file]").forEach((el) => {
+          el.addEventListener("click", () => openFileTab(el.getAttribute("data-open-file")));
+        });
+
+        rootEl.querySelectorAll("[data-tab-path]").forEach((el) => {
+          el.addEventListener("click", () => openFileTab(el.getAttribute("data-tab-path")));
+        });
+
+        rootEl.querySelectorAll("[data-close-tab]").forEach((el) => {
+          el.addEventListener("click", (ev) => closeFileTab(el.getAttribute("data-close-tab"), ev));
+        });
+
+        const newFileBtn = document.getElementById("btn-new-file");
+        if (newFileBtn) newFileBtn.addEventListener("click", triggerAddFileFlow);
+
+        const mobPlusBtn = document.getElementById("mob-plus-btn");
+        if (mobPlusBtn) mobPlusBtn.addEventListener("click", triggerAddFileFlow);
+
+        const mobWebBtn = document.getElementById("mob-web-btn");
+        if (mobWebBtn) {
+          mobWebBtn.addEventListener("click", () => {
+            state.webEnabled = !state.webEnabled;
+            render({ preserveInputFocus: document.activeElement && document.activeElement.id === "prompt-input" });
+          });
+        }
+
+        const codeEditorEl = document.getElementById("code-editor");
+        const codeHighlightEl = document.getElementById("code-highlight");
+        if (codeEditorEl && currentFilePath) {
+          codeEditorEl.addEventListener("input", (ev) => {
+            const val = ev.target.value;
+            state.files[currentFilePath] = val;
+            if (val.trim()) state.dirtyFiles[currentFilePath] = true;
+            else delete state.dirtyFiles[currentFilePath];
+            saveCachedWorkspace(state.files, state.openTabs, state.activeFile);
+            if (codeHighlightEl) {
+              codeHighlightEl.innerHTML = `<code>${val ? val.split("\n").map((ln) => highlightCodeLineHtml(ln)).join("\n") : ""}</code>`;
+            }
+          });
+        }
+
+        const scrollEl = document.getElementById("agent-scroll");
         if (scrollEl) {
           scrollEl.addEventListener("scroll", () => {
             const distanceFromBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
@@ -1254,15 +1898,20 @@
             const mobSendBtn = document.getElementById("mob-send-btn");
             if (mobSendBtn) mobSendBtn.disabled = disabled;
           });
+
+          inputEl.addEventListener("keydown", (ev) => {
+            if (ev.key === "Enter" && !ev.shiftKey) {
+              ev.preventDefault();
+              handleSubmit(ev);
+            }
+          });
+
           if (preserveInputFocus && !state.loading) {
             inputEl.focus();
             const len = inputEl.value.length;
             inputEl.setSelectionRange(len, len);
           }
         }
-
-        const mobPlusBtn = document.getElementById("mob-plus-btn");
-        if (mobPlusBtn) mobPlusBtn.addEventListener("click", handleNewChat);
 
         const mobModeBtn = document.getElementById("mob-mode-btn");
         if (mobModeBtn) {
@@ -1347,7 +1996,7 @@
         state.userScrolledUp = false;
 
         const latestAnswer = state.feed.length > 0
-          ? state.feed[state.feed.length - 1].answer
+          ? extractTextOnly(state.feed[state.feed.length - 1].answer)
           : state.activeRun.aiResponse || "";
         const tl = buildTimeline(state.activeRun.task, state.activeRun.steps, latestAnswer, 1);
         const startAt = performance.now();
@@ -1372,23 +2021,23 @@
           }
 
           state.t = elapsed;
-          const typed = Math.round((state.activeRun.task || "").length * Math.min(1, elapsed / tl.type));
           const ns = elapsed < tl.s0
             ? 0
             : Math.min(tl.steps.length, 1 + Math.floor((elapsed - tl.s0) / tl.step));
           const ansChars = elapsed < tl.a0
             ? 0
             : Math.max(1, Math.round(latestAnswer.length * Math.min(1, (elapsed - tl.a0) / Math.max(1, tl.answerDur))));
-          const stepBucket = `${typed}:${ns}`;
-          const ansBucket = `${ansChars}`;
+          const bucket = `${ns}|${ansChars}`;
 
-          if (stepBucket !== lastBucket.split("|")[0]) {
-            lastBucket = `${stepBucket}|${ansBucket}`;
-            const activeId = document.activeElement && document.activeElement.id;
-            render({ preserveInputFocus: activeId === "prompt-input", forceScrollBottom: false });
-          } else if (ansBucket !== (lastBucket.split("|")[1] || "")) {
-            lastBucket = `${stepBucket}|${ansBucket}`;
-            render({ feedOnly: true, forceScrollBottom: false });
+          if (bucket !== lastBucket) {
+            const prevNs = lastBucket.split("|")[0];
+            lastBucket = bucket;
+            if (String(ns) !== prevNs) {
+              const activeId = document.activeElement && document.activeElement.id;
+              render({ preserveInputFocus: activeId === "prompt-input", forceScrollBottom: false });
+            } else {
+              render({ feedOnly: true, forceScrollBottom: false });
+            }
           }
 
           rafId = requestAnimationFrame(tick);
@@ -1399,26 +2048,30 @@
 
       function handleNewChat() {
         stopAnimation();
-        codeBlockStore.clear();
         clearCachedFeed();
+        clearCachedWorkspace();
+        state.files = {};
+        state.openTabs = [];
+        state.activeFile = "";
+        state.dirtyFiles = {};
+        state.latestThinking = "";
+        state.latestWeb = null;
         state.feed = [];
         state.promptInput = "";
         state.errorMsg = null;
         state.merged = false;
         state.userScrolledUp = false;
         state.activeRun = {
-          tab: "LOOMI",
-          path: state.activeRun.path || "~/loomi",
-          task: "New chat started — old data cleared",
+          tab: AGENT_NAME.toUpperCase(),
+          path: "~/loomi",
+          task: `${AGENT_NAME} reset — ready for real thinking, web search & files`,
           steps: [
-            "Read | new-chat session | 0.1s",
-            "Edit | web-cache cleared (∞) | 0.1s",
-            "Run | Loomi AI ready ✓ 0 errors | 0.2s",
+            "Think | initialize clean session | 0.1s",
+            `Run | ${AGENT_NAME} ready | 0.2s`,
           ].join("\n"),
-          file: "src/ai/Loomi.ai",
+          file: "",
           stat: "0",
-          diff: "",
-          summary: "0 saved · fresh chat",
+          summary: `0 saved · ${AGENT_NAME}`,
           done: "ready",
           aiResponse: "",
         };
@@ -1437,34 +2090,53 @@
 
         try {
           const historySnapshot = state.feed.slice();
+          const activeFilePath = toFileNameOnly(state.activeFile || "");
+          const webData = state.webEnabled ? await searchWebForTopic(cleanPrompt) : null;
+
           const { entry, totalTokens } = await loomiClient.ask({
             prompt: cleanPrompt,
             history: historySnapshot,
             systemPrompt: DEFAULT_SYSTEM_PROMPT,
-            temperature: state.fastMode ? 0.5 : 0.7,
-            maxCompletionTokens: state.fastMode ? 768 : 1024,
+            allFiles: state.files,
+            activeFile: activeFilePath,
+            webData,
+            temperature: state.fastMode ? 0.45 : 0.7,
+            maxCompletionTokens: state.fastMode ? 1300 : 1800,
           });
 
           const nextFeed = [...historySnapshot, entry];
           state.feed = nextFeed;
           saveCachedFeed(nextFeed);
 
+          state.latestThinking = entry.thinking || `Analyzed "${cleanPrompt}" with ${Object.keys(state.files).length} workspace file(s) and ${webData ? webData.sources.length : 0} web source(s).`;
+          state.latestWeb = webData;
+
+          const generatedFiles = extractGeneratedFiles(entry.answer, cleanPrompt, activeFilePath);
+          for (const gf of generatedFiles) {
+            writeGeneratedFile(gf.fileName, gf.code);
+          }
+
+          const latestTarget = generatedFiles.length > 0
+            ? toFileNameOnly(generatedFiles[generatedFiles.length - 1].fileName)
+            : activeFilePath;
+
+          const textSummary = extractTextOnly(entry.answer);
           const tokenSuffix = typeof totalTokens === "number" ? ` · ${totalTokens} tokens` : "";
           state.activeRun = {
-            tab: "LOOMI",
-            path: state.activeRun.path || "~/loomi",
+            tab: AGENT_NAME.toUpperCase(),
+            path: "~/loomi",
             task: cleanPrompt,
             steps: [
-              `Read | prompt #${nextFeed.length} (${cleanPrompt.length} chars) | 0.2s`,
-              `Edit | web-cache (${nextFeed.length} saved) | 0.4s`,
-              `Run | ${entry.model} ✓ 0 errors | 0.9s`,
+              `Think | plan & read ${Object.keys(state.files).length} file(s) | 0.2s`,
+              `Web | ${webData ? `${webData.sources.length} source(s), ${webData.images.length} img` : "web off"} | 0.3s`,
+              `Edit | ${generatedFiles.length > 0 ? generatedFiles.map((f) => toFileNameOnly(f.fileName)).join(", ") : "text response"} | 0.4s`,
+              `Run | ${entry.model} ✓ 0 errors | 0.8s`,
             ].join("\n"),
-            file: "src/ai/Loomi.ai",
+            file: latestTarget,
             stat: `#${nextFeed.length}`,
-            diff: "",
             summary: `${nextFeed.length} saved · ${entry.model}${tokenSuffix}`,
             done: "ready to merge",
-            aiResponse: entry.answer,
+            aiResponse: textSummary,
           };
 
           state.promptInput = "";
@@ -1472,7 +2144,7 @@
           startOneShot();
         } catch (err) {
           state.loading = false;
-          state.errorMsg = err && err.message ? err.message : "Loomi AI request failed.";
+          state.errorMsg = err && err.message ? err.message : `${AGENT_NAME} request failed.`;
           render();
         }
       }
