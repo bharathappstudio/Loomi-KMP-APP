@@ -114,7 +114,6 @@ dependencies {
     implementation(libs.androidx.camera.view)
     implementation(libs.androidx.camera.extensions)
     implementation(libs.livekit.android)
-    implementation(libs.livekit.server)
     implementation(libs.billing.ktx)
     implementation(libs.zxing.core)
     testImplementation(libs.junit)

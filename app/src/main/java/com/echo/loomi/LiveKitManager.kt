@@ -1,23 +1,22 @@
 package com.echo.loomi
 
 import android.content.Context
+import android.util.Base64
 import android.util.Log
 import io.livekit.android.LiveKit
 import io.livekit.android.room.Room
 import io.livekit.android.events.RoomEvent
 import io.livekit.android.events.collect
-import io.livekit.server.AccessToken
-import io.livekit.server.CanPublish
-import io.livekit.server.CanSubscribe
-import io.livekit.server.RoomJoin
-import io.livekit.server.RoomName
 import kotlinx.coroutines.*
+import org.json.JSONObject
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 /**
  * LiveKit audio call manager. Replaces the old WebRTC peer-to-peer approach with
  * LiveKit's SFU-based architecture for more reliable calls.
  *
- * Uses the LiveKit Server SDK locally to generate JWT tokens and
+ * Uses native JWT generation locally to generate tokens and
  * the LiveKit Android SDK to connect to the LiveKit Cloud room.
  */
 class LiveKitManager(
@@ -38,18 +37,45 @@ class LiveKitManager(
      * Generate a LiveKit JWT access token for the given room and participant.
      */
     private fun generateToken(roomName: String, participantIdentity: String): String {
-        val token = AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
-        token.identity = participantIdentity
-        token.name = participantIdentity
+        val now = System.currentTimeMillis() / 1000
+        val exp = now + 86400
 
-        token.addGrants(
-            RoomJoin(true),
-            RoomName(roomName),
-            CanPublish(true),
-            CanSubscribe(true)
-        )
+        val header = JSONObject().apply {
+            put("alg", "HS256")
+            put("typ", "JWT")
+        }
 
-        return token.toJwt()
+        val videoGrants = JSONObject().apply {
+            put("room", roomName)
+            put("roomJoin", true)
+            put("canPublish", true)
+            put("canSubscribe", true)
+        }
+
+        val payload = JSONObject().apply {
+            put("iss", LIVEKIT_API_KEY)
+            put("sub", participantIdentity)
+            put("name", participantIdentity)
+            put("nbf", now - 5)
+            put("exp", exp)
+            put("video", videoGrants)
+        }
+
+        fun base64UrlEncode(bytes: ByteArray): String {
+            return Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
+        }
+
+        val headerB64 = base64UrlEncode(header.toString().toByteArray(Charsets.UTF_8))
+        val payloadB64 = base64UrlEncode(payload.toString().toByteArray(Charsets.UTF_8))
+        val signingInput = "$headerB64.$payloadB64"
+
+        val mac = Mac.getInstance("HmacSHA256")
+        val secretKey = SecretKeySpec(LIVEKIT_API_SECRET.toByteArray(Charsets.UTF_8), "HmacSHA256")
+        mac.init(secretKey)
+        val signature = mac.doFinal(signingInput.toByteArray(Charsets.UTF_8))
+        val signatureB64 = base64UrlEncode(signature)
+
+        return "$signingInput.$signatureB64"
     }
 
     /**
