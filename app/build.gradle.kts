@@ -63,6 +63,8 @@ android {
             excludes += "/META-INF/*.kotlin_module"
             excludes += "/*.txt"
             excludes += "/com/google/thirdparty/publicsuffix/PublicSuffixPatterns.dat"
+            excludes += "google/protobuf/*.proto"
+            excludes += "google/protobuf/**/*.proto"
         }
     }
 
@@ -111,7 +113,8 @@ dependencies {
     implementation(libs.androidx.camera.video)
     implementation(libs.androidx.camera.view)
     implementation(libs.androidx.camera.extensions)
-    implementation(libs.google.webrtc)
+    implementation(libs.livekit.android)
+    implementation(libs.livekit.server)
     implementation(libs.billing.ktx)
     implementation(libs.zxing.core)
     testImplementation(libs.junit)

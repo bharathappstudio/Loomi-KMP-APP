@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.input.key.*
 import com.echo.loomi.desktop.network.FirebaseClient
+import com.echo.loomi.desktop.network.LiveKitClient
 import com.echo.loomi.desktop.utils.DesktopEncryptionUtils
 import com.echo.loomi.desktop.utils.LocalCacheManager
 import com.google.gson.Gson
@@ -598,6 +599,8 @@ fun MainScreen(
                         secondaryColor = textColorSecondary,
                         onCall = {
                             val uid = FirebaseClient.currentUid ?: return@ChatPane
+                            // Generate LiveKit room name for this call pair
+                            val roomName = LiveKitClient.generateRoomName(uid, selectedUser!!.uid)
                             val callData = CallData(uid, selectedUser!!.uid, DesktopEncryptionUtils.encrypt(currentUserName), DesktopEncryptionUtils.encrypt(currentUserImage), "ringing")
                             FirebaseClient.write("calls/${selectedUser!!.uid}", callData)
                             activeCallData = callData

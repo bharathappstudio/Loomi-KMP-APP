@@ -1,4 +1,8 @@
-# WebRTC - Keep everything as it uses JNI extensively
+# LiveKit SDK - Keep JNI and WebRTC internals
+-keep class io.livekit.** { *; }
+-keep class livekit.** { *; }
+-dontwarn io.livekit.**
+-dontwarn livekit.**
 -keep class org.webrtc.** { *; }
 -keep interface org.webrtc.** { *; }
 -dontwarn org.webrtc.**

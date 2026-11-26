@@ -54,6 +54,9 @@ kotlin {
                 implementation("com.google.code.gson:gson:2.10.1")
                 implementation(libs.kotlinx.coroutines.swing)
                 
+                // LiveKit Server SDK for token generation
+                implementation(libs.livekit.server)
+                
                 // JavaFX for WebView support - All platforms
                 val javafxVersion = "21.0.2"
                 listOf("win", "mac", "mac-aarch64", "linux").forEach { os ->
