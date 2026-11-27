@@ -454,7 +454,7 @@ fun startCall(context: android.content.Context, receiverUid: String, receiverNam
 
     // Encrypt metadata for privacy
     val encryptedName = EncryptionUtils.encrypt(auth.currentUser?.displayName ?: "User")
-    val encryptedImage = EncryptionUtils.encrypt(receiverImage)
+    val encryptedImage = EncryptionUtils.encrypt(auth.currentUser?.photoUrl?.toString() ?: "")
 
     val callData = CallData(
         callerId = currentUid,
