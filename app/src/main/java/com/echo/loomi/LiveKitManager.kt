@@ -1,6 +1,11 @@
 package com.echo.loomi
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import android.media.AudioManager
+import androidx.core.content.ContextCompat
+import io.livekit.android.room.track.RemoteAudioTrack
 import android.util.Base64
 import android.util.Log
 import io.livekit.android.LiveKit
@@ -87,6 +92,11 @@ class LiveKitManager(
     fun connect(roomName: String, participantIdentity: String, participantName: String = participantIdentity) {
         scope.launch {
             try {
+                // Configure audio manager for communication mode and system mic/speaker routing
+                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+                audioManager.setSpeakerphoneOn(true)
+
                 val jwt = generateToken(roomName, participantIdentity)
 
                 val newRoom = LiveKit.create(context)
@@ -98,8 +108,13 @@ class LiveKitManager(
                         when (event) {
                             is RoomEvent.Connected -> {
                                 Log.d(TAG, "Connected to LiveKit room: $roomName")
-                                // Enable microphone (audio-only call)
-                                newRoom.localParticipant.setMicrophoneEnabled(true)
+                                // Check microphone permission and enable microphone
+                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                                    newRoom.localParticipant.setMicrophoneEnabled(true)
+                                    Log.d(TAG, "Microphone enabled successfully")
+                                } else {
+                                    Log.e(TAG, "RECORD_AUDIO permission not granted when connecting!")
+                                }
                                 withContext(Dispatchers.Main) {
                                     listener.onConnected()
                                 }
@@ -112,6 +127,10 @@ class LiveKitManager(
                             }
                             is RoomEvent.TrackSubscribed -> {
                                 Log.d(TAG, "Remote audio track subscribed — audio should be audible now.")
+                                val track = event.track
+                                if (track is RemoteAudioTrack) {
+                                    track.start()
+                                }
                                 withContext(Dispatchers.Main) {
                                     listener.onRemoteAudioReceived()
                                 }
@@ -166,6 +185,8 @@ class LiveKitManager(
         scope.launch {
             try {
                 room?.disconnect()
+                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                audioManager.mode = AudioManager.MODE_NORMAL
             } catch (e: Exception) {
                 Log.e(TAG, "Error disconnecting: ${e.message}")
             } finally {
