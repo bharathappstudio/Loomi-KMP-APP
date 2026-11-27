@@ -6,14 +6,13 @@ import android.content.pm.PackageManager
 import android.media.AudioManager
 import androidx.core.content.ContextCompat
 import io.livekit.android.room.track.RemoteAudioTrack
-import android.util.Base64
 import android.util.Log
 import io.livekit.android.LiveKit
 import io.livekit.android.room.Room
 import io.livekit.android.events.RoomEvent
 import io.livekit.android.events.collect
 import kotlinx.coroutines.*
-import org.json.JSONObject
+import android.util.Base64
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
@@ -21,8 +20,7 @@ import javax.crypto.spec.SecretKeySpec
  * LiveKit audio call manager. Replaces the old WebRTC peer-to-peer approach with
  * LiveKit's SFU-based architecture for more reliable calls.
  *
- * Uses native JWT generation locally to generate tokens and
- * the LiveKit Android SDK to connect to the LiveKit Cloud room.
+ * Generates valid LiveKit JWT tokens using HMAC-SHA256 and the LiveKit Android SDK to connect to the LiveKit Cloud room.
  */
 class LiveKitManager(
     private val context: Context,
@@ -39,48 +37,42 @@ class LiveKitManager(
     private var scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     /**
-     * Generate a LiveKit JWT access token for the given room and participant.
+     * Generate a LiveKit JWT access token for the given room and participant using HMAC-SHA256.
      */
     private fun generateToken(roomName: String, participantIdentity: String): String {
+        val header = "{\"alg\":\"HS256\",\"typ\":\"JWT\"}"
         val now = System.currentTimeMillis() / 1000
-        val exp = now + 86400
+        val exp = now + 3600 // 1 hour expiration
 
-        val header = JSONObject().apply {
-            put("alg", "HS256")
-            put("typ", "JWT")
-        }
+        val payload = """
+            {
+              "iss": "$LIVEKIT_API_KEY",
+              "sub": "$participantIdentity",
+              "nbf": $now,
+              "exp": $exp,
+              "video": {
+                "room": "$roomName",
+                "roomJoin": true,
+                "canPublish": true,
+                "canSubscribe": true
+              }
+            }
+        """.trimIndent().replace(Regex("\\s+"), "")
 
-        val videoGrants = JSONObject().apply {
-            put("room", roomName)
-            put("roomJoin", true)
-            put("canPublish", true)
-            put("canSubscribe", true)
-        }
+        val base64Flags = Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP
 
-        val payload = JSONObject().apply {
-            put("iss", LIVEKIT_API_KEY)
-            put("sub", participantIdentity)
-            put("name", participantIdentity)
-            put("nbf", now - 5)
-            put("exp", exp)
-            put("video", videoGrants)
-        }
+        val encodedHeader = Base64.encodeToString(header.toByteArray(Charsets.UTF_8), base64Flags)
+        val encodedPayload = Base64.encodeToString(payload.toByteArray(Charsets.UTF_8), base64Flags)
 
-        fun base64UrlEncode(bytes: ByteArray): String {
-            return Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
-        }
+        val signingInput = "$encodedHeader.$encodedPayload"
 
-        val headerB64 = base64UrlEncode(header.toString().toByteArray(Charsets.UTF_8))
-        val payloadB64 = base64UrlEncode(payload.toString().toByteArray(Charsets.UTF_8))
-        val signingInput = "$headerB64.$payloadB64"
-
-        val mac = Mac.getInstance("HmacSHA256")
         val secretKey = SecretKeySpec(LIVEKIT_API_SECRET.toByteArray(Charsets.UTF_8), "HmacSHA256")
+        val mac = Mac.getInstance("HmacSHA256")
         mac.init(secretKey)
-        val signature = mac.doFinal(signingInput.toByteArray(Charsets.UTF_8))
-        val signatureB64 = base64UrlEncode(signature)
+        val signatureBytes = mac.doFinal(signingInput.toByteArray(Charsets.UTF_8))
+        val encodedSignature = Base64.encodeToString(signatureBytes, base64Flags)
 
-        return "$signingInput.$signatureB64"
+        return "$signingInput.$encodedSignature"
     }
 
     /**
