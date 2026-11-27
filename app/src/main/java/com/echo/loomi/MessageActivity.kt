@@ -411,7 +411,7 @@ fun MessageScreen(
                 isTyping = isReceiverTyping,
                 onBack = onBack,
                 onCallClick = {
-                    startCall(receiverUid, receiverName, receiverImage)
+                    startCall(context, receiverUid, receiverName, receiverImage)
                 }
             )
             

@@ -750,7 +750,14 @@ fun MainScreen(
                             }
                             // Decline
                             FloatingActionButton(
-                                onClick = { FirebaseClient.delete("calls/${FirebaseClient.currentUid}") },
+                                onClick = { 
+                                    FirebaseClient.delete("calls/${FirebaseClient.currentUid}")
+                                    activeCallData?.let { data ->
+                                        FirebaseClient.delete("calls/${data.callerId}")
+                                    }
+                                    callState = CallState.IDLE
+                                    activeCallData = null
+                                },
                                 containerColor = Color(0xFFFF3B30),
                                 contentColor = Color.White,
                                 shape = CircleShape,
@@ -768,7 +775,9 @@ fun MainScreen(
                                 onClick = { 
                                     activeCallData?.let { data ->
                                         FirebaseClient.delete("calls/${data.receiverId}")
+                                        FirebaseClient.delete("calls/${data.callerId}")
                                     }
+                                    FirebaseClient.delete("calls/${FirebaseClient.currentUid}")
                                     callState = CallState.IDLE 
                                     activeCallData = null
                                 },

@@ -57,9 +57,20 @@ kotlin {
                 // LiveKit Server SDK for token generation
                 implementation(libs.livekit.server)
                 
-                // JavaFX for WebView support - All platforms
+                // JavaFX for WebView support (Optimized for file size and current OS)
                 val javafxVersion = "21.0.2"
-                listOf("win", "mac", "mac-aarch64", "linux").forEach { os ->
+                val osNameProp = System.getProperty("os.name").lowercase()
+                val targetOsList = if (hasProperty("allPlatforms") || System.getenv("BUILD_ALL_PLATFORMS") == "true") {
+                    listOf("win", "mac", "mac-aarch64", "linux")
+                } else {
+                    val current = when {
+                        osNameProp.contains("win") -> "win"
+                        osNameProp.contains("mac") -> if (System.getProperty("os.arch") == "aarch64") "mac-aarch64" else "mac"
+                        else -> "linux"
+                    }
+                    listOf(current)
+                }
+                targetOsList.forEach { os ->
                     implementation("org.openjfx:javafx-base:$javafxVersion:$os")
                     implementation("org.openjfx:javafx-graphics:$javafxVersion:$os")
                     implementation("org.openjfx:javafx-controls:$javafxVersion:$os")

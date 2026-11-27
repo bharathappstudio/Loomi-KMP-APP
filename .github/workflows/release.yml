@@ -1,4 +1,4 @@
-name: Release Desktop App
+name: Release Loomi App & Desktop Packages
 
 on:
   push:
@@ -8,8 +8,50 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build on ${{ matrix.os }}
+  build-android:
+    name: Build Android APK & SHA-256
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'zulu'
+          cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build Android APK
+        run: ./gradlew :app:assembleDebug
+
+      - name: Generate SHA-256 Checksum for APK
+        run: |
+          cd app/build/outputs/apk/debug
+          sha256sum app-debug.apk > app-debug.apk.sha256
+          cat app-debug.apk.sha256
+
+      - name: Upload Android APK and SHA to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'Loomi Release - ' + github.ref_name }}
+          files: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/debug/app-debug.apk.sha256
+          fail_on_unmatched_files: false
+          generate_release_notes: true
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-desktop:
+    name: Build Desktop on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -39,24 +81,29 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build Packages
+      - name: Build Desktop Packages
         run: ./gradlew ${{ matrix.tasks }} --info
 
-      - name: Upload to Release
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+      - name: Generate SHA-256 Checksum for Desktop Binaries
+        shell: bash
+        run: |
+          cd desktop/build/compose/binaries/main || true
+          find . -type f \( -name "*.deb" -o -name "*.exe" -o -name "*.msi" -o -name "*.dmg" \) -exec sha256sum {} \; > desktop_binaries.sha256 || true
+          cat desktop_binaries.sha256 || true
+
+      - name: Upload Desktop Packages and SHA to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
-          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'Loomi Desktop - Latest Build' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'Loomi Release - ' + github.ref_name }}
           files: |
             desktop/build/compose/binaries/main/**/*.deb
             desktop/build/compose/binaries/main/**/*.exe
             desktop/build/compose/binaries/main/**/*.msi
             desktop/build/compose/binaries/main/**/*.dmg
+            desktop/build/compose/binaries/main/**/*.sha256
           fail_on_unmatched_files: false
           generate_release_notes: true
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # The separate release job is no longer needed as each build job uploads directly

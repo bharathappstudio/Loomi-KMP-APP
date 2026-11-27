@@ -3,6 +3,7 @@ package com.echo.loomi
 import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.util.Base64
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.Image
@@ -317,6 +318,19 @@ fun CallOverlay() {
                         "ringing" -> {
                             currentCallState = CallState.INCOMING
                             showCallSheet = true
+                            // Launch CallActivity for incoming call full-screen experience
+                            val intent = android.content.Intent(context, CallActivity::class.java).apply {
+                                putExtra("receiverUid", callData.callerId)
+                                putExtra("receiverName", callData.callerName)
+                                putExtra("receiverImage", callData.callerImage)
+                                putExtra("isIncoming", true)
+                                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+                            }
+                            try {
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Log.e("CallOverlay", "Failed to launch CallActivity: ${e.message}")
+                            }
                         }
                         "accepted" -> {
                             currentCallState = CallState.ONGOING
@@ -428,7 +442,7 @@ fun CallOverlay() {
     }
 }
 
-fun startCall(receiverUid: String, receiverName: String, receiverImage: String) {
+fun startCall(context: android.content.Context, receiverUid: String, receiverName: String, receiverImage: String) {
     val auth = FirebaseAuth.getInstance()
     val currentUid = auth.currentUser?.uid ?: return
     val database = FirebaseDatabase.getInstance("https://echo-loomi-app-default-rtdb.firebaseio.com/").reference
@@ -451,6 +465,20 @@ fun startCall(receiverUid: String, receiverName: String, receiverImage: String) 
     )
 
     database.child("calls").child(receiverUid).setValue(callData)
+
+    // Launch CallActivity for outgoing call
+    val intent = android.content.Intent(context, CallActivity::class.java).apply {
+        putExtra("receiverUid", receiverUid)
+        putExtra("receiverName", receiverName)
+        putExtra("receiverImage", receiverImage)
+        putExtra("isIncoming", false)
+        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+    }
+    try {
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        Log.e("CallOverlay", "Failed to launch CallActivity on startCall: ${e.message}")
+    }
 }
 
 fun endCall(receiverUid: String) {

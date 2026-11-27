@@ -1,5 +1,7 @@
 package com.echo.loomi
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -7,6 +9,8 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -23,9 +27,24 @@ import kotlinx.coroutines.delay
 class CallActivity : ComponentActivity() {
     private var proximitySensorManager: ProximitySensorManager? = null
 
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            Log.d("CallActivity", "Microphone permission granted for live voice calls")
+        } else {
+            Log.e("CallActivity", "Microphone permission denied")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // Request microphone permission for live audio streaming via LiveKit
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+
         proximitySensorManager = ProximitySensorManager(this)
         proximitySensorManager?.start()
 
@@ -99,7 +118,7 @@ fun CallScreenContent(
     val liveKitManager = remember {
         LiveKitManager(context, object : LiveKitManager.LiveKitCallListener {
             override fun onConnected() {
-                Log.d("CallActivity", "LiveKit connected — audio streaming")
+                Log.d("CallActivity", "LiveKit connected — audio streaming active via microphone")
             }
 
             override fun onDisconnected() {
@@ -107,7 +126,7 @@ fun CallScreenContent(
             }
 
             override fun onRemoteAudioReceived() {
-                Log.d("CallActivity", "Remote audio track received — should be audible now")
+                Log.d("CallActivity", "Remote audio track received — audio audible")
             }
 
             override fun onParticipantLeft() {
@@ -127,12 +146,14 @@ fun CallScreenContent(
         }
     }
 
-    // Call Duration Timer
+    // Call Duration Timer & Cloud Timing Update
     LaunchedEffect(callState) {
         if (callState == CallState.ONGOING) {
             while (true) {
                 delay(1000)
                 callDuration++
+                // Update live call timing/duration on cloud
+                database.child("calls").child(currentUid).child("duration").setValue(callDuration)
             }
         }
     }
@@ -155,7 +176,7 @@ fun CallScreenContent(
         return "%02d:%02d".format(mins, secs)
     }
 
-    // Listen for call changes via Firebase (signaling only — no SDP/ICE needed with LiveKit)
+    // Listen for call changes via Firebase signaling
     LaunchedEffect(Unit) {
         val targetUid = if (isIncoming) currentUid else receiverUid
         val callRef = database.child("calls").child(targetUid)
@@ -163,7 +184,7 @@ fun CallScreenContent(
         callRef.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 if (!snapshot.exists()) {
-                    Log.d("CallActivity", "Call data removed, finishing call UI.")
+                    Log.d("CallActivity", "Call data removed from cloud, finishing call UI.")
                     liveKitManager.disconnect()
                     onFinish()
                 } else {
@@ -181,8 +202,10 @@ fun CallScreenContent(
                             participantName = auth.currentUser?.displayName ?: "User"
                         )
                     } else if (status == "ended" || status == "declined") {
-                        Log.d("CallActivity", "Call $status, finishing.")
+                        Log.d("CallActivity", "Call $status, finishing and cleaning up cloud data.")
                         liveKitManager.disconnect()
+                        database.child("calls").child(currentUid).removeValue()
+                        database.child("calls").child(receiverUid).removeValue()
                         onFinish()
                     }
                 }
@@ -192,8 +215,6 @@ fun CallScreenContent(
             }
         })
     }
-
-    // === UI IS UNCHANGED BELOW THIS LINE ===
 
     Box(modifier = Modifier.fillMaxSize()) {
         val decryptedName = if (isIncoming) EncryptionUtils.decrypt(receiverName) else receiverName
@@ -216,20 +237,23 @@ fun CallScreenContent(
             },
             onDecline = {
                 endCall(currentUid)
+                database.child("calls").child(currentUid).removeValue()
+                database.child("calls").child(receiverUid).removeValue()
                 liveKitManager.disconnect()
                 onFinish()
             },
             onEnd = {
                 if (isIncoming) endCall(currentUid) else endCall(receiverUid)
+                database.child("calls").child(currentUid).removeValue()
+                database.child("calls").child(receiverUid).removeValue()
                 liveKitManager.disconnect()
                 onFinish()
             },
             onDismiss = {
-                // Do nothing on dismiss (tapping outside) to keep the call active
+                // Do nothing on dismiss to keep call active
             }
         )
         
-        // Timer display overlay (since we can't change CallBottomSheet UI)
         if (callState == CallState.ONGOING) {
             androidx.compose.material3.Text(
                 text = formatDuration(callDuration),
