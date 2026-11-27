@@ -59,6 +59,15 @@ kotlin {
                 
                 // JavaFX for WebView support (Optimized for file size and current OS)
                 val javafxVersion = "21.0.2"
+                
+                // Base JavaFX dependencies (API & bytecode)
+                implementation("org.openjfx:javafx-base:$javafxVersion")
+                implementation("org.openjfx:javafx-graphics:$javafxVersion")
+                implementation("org.openjfx:javafx-controls:$javafxVersion")
+                implementation("org.openjfx:javafx-web:$javafxVersion")
+                implementation("org.openjfx:javafx-swing:$javafxVersion")
+                implementation("org.openjfx:javafx-media:$javafxVersion")
+
                 val osNameProp = System.getProperty("os.name").lowercase()
                 val targetOsList = if (hasProperty("allPlatforms") || System.getenv("BUILD_ALL_PLATFORMS") == "true") {
                     listOf("win", "mac", "mac-aarch64", "linux")
