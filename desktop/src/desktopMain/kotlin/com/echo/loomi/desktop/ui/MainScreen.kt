@@ -42,6 +42,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.input.key.*
+import com.echo.loomi.desktop.network.DesktopAudioService
 import com.echo.loomi.desktop.network.FirebaseClient
 import com.echo.loomi.desktop.network.LiveKitClient
 import com.echo.loomi.desktop.utils.DesktopEncryptionUtils
@@ -213,14 +214,17 @@ fun MainScreen(
         }
     }
 
-    // Call Timer Logic
+    // Call Timer & System Audio Logic
     LaunchedEffect(callState) {
         if (callState == CallState.ONGOING) {
             callTicks = 0
+            DesktopAudioService.startCallAudio()
             while (callState == CallState.ONGOING) {
                 delay(1000)
                 callTicks++
             }
+        } else {
+            DesktopAudioService.stopCallAudio()
         }
     }
 
